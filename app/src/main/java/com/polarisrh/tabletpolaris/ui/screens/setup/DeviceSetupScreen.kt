@@ -1,6 +1,7 @@
 package com.polarisrh.tabletpolaris.ui.screens.setup
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,10 +24,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.data.repository.DeviceAuthRepository
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
@@ -47,25 +52,33 @@ fun DeviceSetupScreen(
         }
     )
     val uiState by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(32.dp),
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                })
+            }
+            .padding(48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        PolarisLogoMark()
+        PolarisLogoMark(size = 160.dp)
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         Column(
             modifier = Modifier
-                .widthIn(max = 440.dp)
+                .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .background(PolarisCard, RoundedCornerShape(24.dp))
-                .padding(horizontal = 32.dp, vertical = 40.dp),
+                .background(PolarisCard, RoundedCornerShape(32.dp))
+                .padding(horizontal = 48.dp, vertical = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -78,31 +91,35 @@ fun DeviceSetupScreen(
                 text = "Insira o código enviado pelo Suporte Polaris RH.",
                 color = PolarisMuted,
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+                modifier = Modifier.padding(top = 12.dp, bottom = 36.dp)
             )
 
             OutlinedTextField(
                 value = uiState.activationCode,
                 onValueChange = viewModel::onActivationCodeChanged,
                 label = { Text("Código de ativação", fontWeight = FontWeight.Bold) },
+                textStyle = MaterialTheme.typography.titleLarge,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = PolarisOnCard,
                     unfocusedTextColor = PolarisOnCard
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
             )
 
             uiState.errorMessage?.let { message ->
                 Text(
                     text = message,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 16.dp)
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 20.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(36.dp))
 
             Button(
                 onClick = { viewModel.activateDevice(onDeviceLinked) },
@@ -113,15 +130,15 @@ fun DeviceSetupScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(76.dp)
             ) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(
                         color = PolarisOnPrimary,
-                        modifier = Modifier.height(20.dp)
+                        modifier = Modifier.height(28.dp)
                     )
                 } else {
-                    Text("Ativar Tablet")
+                    Text("Ativar Tablet", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

@@ -17,4 +17,9 @@ val PolarisOnCard = Color(0xFF10142B)
 
 val PolarisOnPrimary = Color(0xFFFFFFFF)
 val PolarisError = Color(0xFFEB5757)
+val PolarisWarning = Color(0xFFF2994A)
+val PolarisSuccess = Color(0xFF27AE60)
 val PolarisMuted = Color(0xFF8A93B2)
+
+// Stand-in for the live camera feed area, until CameraX is wired in
+val PolarisCameraPlaceholder = Color(0xFF12151F)

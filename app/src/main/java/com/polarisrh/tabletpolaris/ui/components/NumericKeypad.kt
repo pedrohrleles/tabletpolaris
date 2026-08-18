@@ -2,6 +2,7 @@ package com.polarisrh.tabletpolaris.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -19,6 +20,8 @@ private val keypadRows = listOf(
     listOf("", "0", "⌫")
 )
 
+private val KeySize = 112.dp
+
 @Composable
 fun NumericKeypad(
     onDigit: (String) -> Unit,
@@ -27,22 +30,24 @@ fun NumericKeypad(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         keypadRows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 row.forEach { key ->
                     when (key) {
-                        "" -> Spacer(modifier = Modifier.size(72.dp))
+                        "" -> Spacer(modifier = Modifier.size(KeySize))
                         "⌫" -> OutlinedButton(
                             onClick = onBackspace,
-                            modifier = Modifier.size(72.dp)
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(KeySize)
                         ) {
-                            Text(text = key, style = MaterialTheme.typography.titleLarge)
+                            Text(text = key, style = MaterialTheme.typography.headlineSmall)
                         }
                         else -> OutlinedButton(
                             onClick = { onDigit(key) },
-                            modifier = Modifier.size(72.dp)
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(KeySize)
                         ) {
                             Text(text = key, style = MaterialTheme.typography.headlineMedium)
                         }

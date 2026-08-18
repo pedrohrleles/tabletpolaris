@@ -1,3 +1,11 @@
 <resources>
-    <style name="Theme.TabletPolaris" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.TabletPolaris" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/polaris_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/logo_polaris_mark</item>
+        <item name="postSplashScreenTheme">@style/Theme.TabletPolaris.Main</item>
+    </style>
+
+    <style name="Theme.TabletPolaris.Main" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/polaris_background</item>
+    </style>
 </resources>

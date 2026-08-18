@@ -17,16 +17,17 @@ import com.polarisrh.tabletpolaris.ui.screens.facial.FacialCapturePlaceholderScr
 import com.polarisrh.tabletpolaris.ui.screens.setup.DeviceSetupScreen
 import com.polarisrh.tabletpolaris.ui.screens.splash.SplashScreen
 import com.polarisrh.tabletpolaris.ui.screens.success.PunchSuccessScreen
+import java.time.ZoneId
 
 object PolarisDestinations {
     const val SPLASH = "splash"
     const val DEVICE_SETUP = "device_setup"
     const val CLOCK_IN = "clock_in"
     const val FACIAL_CAPTURE = "facial_capture/{matricula}"
-    const val PUNCH_SUCCESS = "punch_success/{matricula}"
+    const val PUNCH_SUCCESS = "punch_success/{matricula}/{timestamp}"
 
     fun facialCapture(matricula: String) = "facial_capture/$matricula"
-    fun punchSuccess(matricula: String) = "punch_success/$matricula"
+    fun punchSuccess(matricula: String, timestampMillis: Long) = "punch_success/$matricula/$timestampMillis"
 }
 
 @Composable
@@ -83,8 +84,12 @@ fun PolarisNavGraph(
                 FacialCapturePlaceholderScreen(
                     matricula = matricula,
                     punchRepository = container.punchRepository,
-                    onPunchRegistered = {
-                        navController.navigate(PolarisDestinations.punchSuccess(matricula)) {
+                    onPunchRegistered = { punchResult ->
+                        val timestampMillis = punchResult.timestamp
+                            .atZone(ZoneId.systemDefault())
+                            .toInstant()
+                            .toEpochMilli()
+                        navController.navigate(PolarisDestinations.punchSuccess(matricula, timestampMillis)) {
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
@@ -94,11 +99,16 @@ fun PolarisNavGraph(
 
             composable(
                 route = PolarisDestinations.PUNCH_SUCCESS,
-                arguments = listOf(navArgument("matricula") { type = NavType.StringType })
+                arguments = listOf(
+                    navArgument("matricula") { type = NavType.StringType },
+                    navArgument("timestamp") { type = NavType.LongType }
+                )
             ) { backStackEntry ->
                 val matricula = backStackEntry.arguments?.getString("matricula").orEmpty()
+                val timestampMillis = backStackEntry.arguments?.getLong("timestamp") ?: 0L
                 PunchSuccessScreen(
                     matricula = matricula,
+                    timestampMillis = timestampMillis,
                     onTimeout = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }

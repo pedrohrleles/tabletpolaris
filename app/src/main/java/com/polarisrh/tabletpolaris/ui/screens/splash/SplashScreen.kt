@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,15 +38,18 @@ fun SplashScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        PolarisLogoMark(size = 96.dp)
+        PolarisLogoMark(size = 180.dp)
         Text(
             text = "Polaris Ponto",
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(top = 16.dp)
+            modifier = Modifier.padding(top = 28.dp)
         )
         CircularProgressIndicator(
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 24.dp)
+            modifier = Modifier
+                .padding(top = 36.dp)
+                .size(36.dp),
+            strokeWidth = 4.dp
         )
     }
 }
