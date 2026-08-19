@@ -15,6 +15,10 @@ val PolarisTeal = Color(0xFF12A594)
 val PolarisCard = Color(0xFFEDEFF5)
 val PolarisOnCard = Color(0xFF10142B)
 
+// "Blocked" grey for disabled controls on the light card — Material3's default disabled
+// state assumes a dark surface and turns near-invisible on PolarisCard.
+val PolarisDisabled = Color(0xFFC7CBD9)
+
 val PolarisOnPrimary = Color(0xFFFFFFFF)
 val PolarisError = Color(0xFFEB5757)
 val PolarisWarning = Color(0xFFF2994A)

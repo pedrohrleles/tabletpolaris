@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -37,6 +40,7 @@ import com.polarisrh.tabletpolaris.data.repository.DeviceAuthRepository
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlueDeep
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
+import com.polarisrh.tabletpolaris.ui.theme.PolarisDisabled
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnPrimary
@@ -65,6 +69,8 @@ fun DeviceSetupScreen(
                     keyboardController?.hide()
                 })
             }
+            .verticalScroll(rememberScrollState())
+            .imePadding()
             .padding(48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -126,7 +132,9 @@ fun DeviceSetupScreen(
                 enabled = !uiState.isLoading && uiState.activationCode.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PolarisBlueDeep,
-                    contentColor = PolarisOnPrimary
+                    contentColor = PolarisOnPrimary,
+                    disabledContainerColor = PolarisDisabled,
+                    disabledContentColor = PolarisOnCard.copy(alpha = 0.6f)
                 ),
                 modifier = Modifier
                     .fillMaxWidth()

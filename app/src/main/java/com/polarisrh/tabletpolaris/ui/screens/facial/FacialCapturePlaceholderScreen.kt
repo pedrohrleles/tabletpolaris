@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -25,8 +24,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextAlign
@@ -119,17 +122,33 @@ fun FacialCapturePlaceholderScreen(
         ) {
             FrontCameraPreview(modifier = Modifier.fillMaxSize())
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(width = FaceGuideSize.width.dp, height = FaceGuideSize.height.dp)
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawOval(
-                        color = PolarisBlue,
-                        style = Stroke(width = 5.dp.toPx())
-                    )
-                }
+            // Spotlight: dim everything outside the guide, punch a clear hole where the
+            // face should go, then draw the guide outline on top.
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val guideWidthPx = FaceGuideSize.width.dp.toPx()
+                val guideHeightPx = FaceGuideSize.height.dp.toPx()
+                val ovalTopLeft = Offset(
+                    x = (size.width - guideWidthPx) / 2f,
+                    y = (size.height - guideHeightPx) / 2f
+                )
+                val ovalSize = Size(guideWidthPx, guideHeightPx)
+
+                drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint())
+                drawRect(color = Color.Black.copy(alpha = 0.55f))
+                drawOval(
+                    color = Color.Transparent,
+                    topLeft = ovalTopLeft,
+                    size = ovalSize,
+                    blendMode = BlendMode.Clear
+                )
+                drawContext.canvas.restore()
+
+                drawOval(
+                    color = PolarisBlue,
+                    topLeft = ovalTopLeft,
+                    size = ovalSize,
+                    style = Stroke(width = 5.dp.toPx())
+                )
             }
 
             Text(
