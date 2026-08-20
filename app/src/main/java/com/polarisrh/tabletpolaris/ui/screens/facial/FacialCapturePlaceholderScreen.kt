@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
 import com.polarisrh.tabletpolaris.ui.components.FrontCameraPreview
@@ -57,12 +59,14 @@ private val StatusBarIdleColor = PolarisMuted.copy(alpha = 0.25f)
 fun FacialCapturePlaceholderScreen(
     matricula: String,
     punchRepository: PunchRepository,
+    deviceStatusChecker: DeviceStatusChecker,
+    networkMonitor: NetworkMonitor,
     onPunchRegistered: (PunchResult) -> Unit,
     onCancel: () -> Unit
 ) {
     val viewModel: FacialCaptureViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { FacialCaptureViewModel(punchRepository) }
+            initializer { FacialCaptureViewModel(punchRepository, deviceStatusChecker, networkMonitor) }
         }
     )
     val uiState by viewModel.uiState.collectAsState()

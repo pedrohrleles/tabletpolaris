@@ -30,6 +30,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.ui.components.NumericKeypad
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
@@ -39,8 +44,18 @@ private const val MAX_MATRICULA_LENGTH = 10
 
 @Composable
 fun ClockInScreen(
+    deviceStatusChecker: DeviceStatusChecker,
+    networkMonitor: NetworkMonitor,
     onMatriculaConfirmed: (String) -> Unit
 ) {
+    // Não usa UI state daqui — só mantém vivo o polling de status (30s) e a checagem ao
+    // recuperar rede enquanto essa tela estiver aberta.
+    viewModel<ClockInViewModel>(
+        factory = viewModelFactory {
+            initializer { ClockInViewModel(deviceStatusChecker, networkMonitor) }
+        }
+    )
+
     var matricula by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {

@@ -17,10 +17,11 @@ data class DeviceSetupUiState(
 )
 
 class DeviceSetupViewModel(
-    private val deviceAuthRepository: DeviceAuthRepository
+    private val deviceAuthRepository: DeviceAuthRepository,
+    initialErrorMessage: String? = null
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(DeviceSetupUiState())
+    private val _uiState = MutableStateFlow(DeviceSetupUiState(errorMessage = initialErrorMessage))
     val uiState: StateFlow<DeviceSetupUiState> = _uiState
 
     fun onActivationCodeChanged(value: String) {

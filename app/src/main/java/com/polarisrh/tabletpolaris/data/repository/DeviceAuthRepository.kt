@@ -10,8 +10,8 @@ interface DeviceAuthRepository {
 }
 
 /**
- * Fake implementation used until the Polaris RH device-activation API is defined.
- * Replace with a real HTTP-backed implementation later without touching call sites.
+ * Fake implementation used until the Polaris RH device-activation API is live.
+ * Replace with [RemoteDeviceAuthRepository] later without touching call sites.
  */
 class FakeDeviceAuthRepository(
     private val credentialsStore: DeviceCredentialsStore
@@ -22,7 +22,17 @@ class FakeDeviceAuthRepository(
         if (activationCode.isBlank()) {
             return Result.failure(IllegalArgumentException("Informe o código de ativação"))
         }
-        credentialsStore.save(DeviceCredentials(activationCode))
+        credentialsStore.save(
+            DeviceCredentials(
+                token = "fake-token-$activationCode",
+                idColetor = "fake-coletor-id",
+                idColetorLogico = "fake-coletor-logico-id",
+                idEmpregador = "fake-empregador-id",
+                idEstabelecimento = "fake-estabelecimento-id",
+                nomeEmpregador = "Empresa de Teste",
+                timezone = "America/Sao_Paulo"
+            )
+        )
         return Result.success(Unit)
     }
 

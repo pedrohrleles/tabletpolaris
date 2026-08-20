@@ -49,11 +49,12 @@ import com.polarisrh.tabletpolaris.ui.theme.PolarisOnPrimary
 @Composable
 fun DeviceSetupScreen(
     deviceAuthRepository: DeviceAuthRepository,
+    initialErrorMessage: String? = null,
     onDeviceLinked: () -> Unit
 ) {
     val viewModel: DeviceSetupViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { DeviceSetupViewModel(deviceAuthRepository) }
+            initializer { DeviceSetupViewModel(deviceAuthRepository, initialErrorMessage) }
         }
     )
     val uiState by viewModel.uiState.collectAsState()

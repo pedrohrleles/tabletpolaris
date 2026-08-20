@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -35,6 +38,17 @@ fun PolarisNavGraph(
     container: AppContainer,
     navController: NavHostController = rememberNavController()
 ) {
+    // Se o backend disser (via heartbeat) que este tablet foi desativado, larga o que
+    // estiver na tela e volta pra ativação — de qualquer ponto do app, a qualquer momento.
+    val revocationMessage by container.deviceRevocationMessage.collectAsState()
+    LaunchedEffect(revocationMessage) {
+        if (revocationMessage != null && navController.currentDestination?.route != PolarisDestinations.DEVICE_SETUP) {
+            navController.navigate(PolarisDestinations.DEVICE_SETUP) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -58,8 +72,13 @@ fun PolarisNavGraph(
             }
 
             composable(PolarisDestinations.DEVICE_SETUP) {
+                val pendingRevocationMessage = container.deviceRevocationMessage.value
+                LaunchedEffect(Unit) {
+                    container.deviceRevocationMessage.value = null
+                }
                 DeviceSetupScreen(
                     deviceAuthRepository = container.deviceAuthRepository,
+                    initialErrorMessage = pendingRevocationMessage,
                     onDeviceLinked = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.DEVICE_SETUP) { inclusive = true }
@@ -70,6 +89,8 @@ fun PolarisNavGraph(
 
             composable(PolarisDestinations.CLOCK_IN) {
                 ClockInScreen(
+                    deviceStatusChecker = container.deviceStatusChecker,
+                    networkMonitor = container.networkMonitor,
                     onMatriculaConfirmed = { matricula ->
                         navController.navigate(PolarisDestinations.facialCapture(matricula))
                     }
@@ -84,6 +105,8 @@ fun PolarisNavGraph(
                 FacialCapturePlaceholderScreen(
                     matricula = matricula,
                     punchRepository = container.punchRepository,
+                    deviceStatusChecker = container.deviceStatusChecker,
+                    networkMonitor = container.networkMonitor,
                     onPunchRegistered = { punchResult ->
                         val timestampMillis = punchResult.timestamp
                             .atZone(ZoneId.systemDefault())
