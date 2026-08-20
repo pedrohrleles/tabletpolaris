@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+const val ACTIVATION_CODE_LENGTH = 12
+
 data class DeviceSetupUiState(
     val activationCode: String = "",
     val isLoading: Boolean = false,
@@ -22,7 +24,10 @@ class DeviceSetupViewModel(
     val uiState: StateFlow<DeviceSetupUiState> = _uiState
 
     fun onActivationCodeChanged(value: String) {
-        _uiState.update { it.copy(activationCode = value.filter { char -> char.isDigit() }, errorMessage = null) }
+        val sanitized = value.filter { char -> char.isLetterOrDigit() }
+            .uppercase()
+            .take(ACTIVATION_CODE_LENGTH)
+        _uiState.update { it.copy(activationCode = sanitized, errorMessage = null) }
     }
 
     fun activateDevice(onSuccess: () -> Unit) {

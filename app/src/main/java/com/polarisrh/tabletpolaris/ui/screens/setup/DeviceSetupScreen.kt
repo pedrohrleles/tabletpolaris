@@ -31,6 +31,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -104,9 +105,14 @@ fun DeviceSetupScreen(
                 value = uiState.activationCode,
                 onValueChange = viewModel::onActivationCodeChanged,
                 label = { Text("Código de ativação", fontWeight = FontWeight.Bold) },
+                placeholder = { Text("ABCD-3JFC-2J2D") },
                 textStyle = MaterialTheme.typography.titleLarge,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = ActivationCodeVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Characters
+                ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = PolarisOnCard,
                     unfocusedTextColor = PolarisOnCard
@@ -129,7 +135,7 @@ fun DeviceSetupScreen(
 
             Button(
                 onClick = { viewModel.activateDevice(onDeviceLinked) },
-                enabled = !uiState.isLoading && uiState.activationCode.isNotBlank(),
+                enabled = !uiState.isLoading && uiState.activationCode.length == ACTIVATION_CODE_LENGTH,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PolarisBlueDeep,
                     contentColor = PolarisOnPrimary,
