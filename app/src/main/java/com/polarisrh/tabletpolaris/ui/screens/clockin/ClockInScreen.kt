@@ -7,6 +7,7 @@ import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +20,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,7 +56,9 @@ fun ClockInScreen(
     networkMonitor: NetworkMonitor,
     colaboradorDao: ColaboradorDao,
     onReconhecerFacial: (String) -> Unit,
-    onPrecisarConfirmarIdentidade: (String) -> Unit
+    onPrecisarConfirmarIdentidade: (String) -> Unit,
+    onAbrirBancoDeDados: () -> Unit,
+    onSairAtivacao: () -> Unit
 ) {
     val viewModel: ClockInViewModel = viewModel(
         factory = viewModelFactory {
@@ -63,14 +68,41 @@ fun ClockInScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var matricula by remember { mutableStateOf("") }
+    var showMenuDebug by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Menu temporário de debug — remover quando não for mais necessário.
         PolarisLogoMark(
             size = 64.dp,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(48.dp)
+                .clickable { showMenuDebug = true }
         )
+
+        if (showMenuDebug) {
+            AlertDialog(
+                onDismissRequest = { showMenuDebug = false },
+                title = { Text("Menu de debug") },
+                text = { Text("Ferramentas temporárias — serão removidas depois.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showMenuDebug = false
+                        onAbrirBancoDeDados()
+                    }) {
+                        Text("Banco de Dados")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showMenuDebug = false
+                        onSairAtivacao()
+                    }) {
+                        Text("Sair (Ativação)")
+                    }
+                }
+            )
+        }
 
         Column(
             modifier = Modifier

@@ -14,6 +14,9 @@ interface ColaboradorDao {
     @Query("SELECT * FROM colaborador WHERE matricula = :matricula")
     suspend fun buscarPorMatricula(matricula: String): ColaboradorEntity?
 
+    @Query("SELECT * FROM colaborador ORDER BY matricula ASC")
+    suspend fun listarTodos(): List<ColaboradorEntity>
+
     /** Base de comparação pro reconhecimento facial local — só quem já tem embedding salvo. */
     @Query("SELECT * FROM colaborador WHERE embeddingFacial IS NOT NULL")
     suspend fun listarComFacialCadastrada(): List<ColaboradorEntity>
