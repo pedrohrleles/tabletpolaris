@@ -16,6 +16,7 @@ import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.FakePunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.RemoteDeviceAuthRepository
+import com.polarisrh.tabletpolaris.facial.FaceEmbeddingExtractor
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class AppContainer(context: Context) {
@@ -25,6 +26,9 @@ class AppContainer(context: Context) {
     val polarisApiService: PolarisApiService = PolarisApiClient.service
 
     val punchRepository: PunchRepository = FakePunchRepository()
+
+    /** MobileFaceNet (.tflite) — gera embeddings faciais 100% on-device, sem rede. */
+    val faceEmbeddingExtractor: FaceEmbeddingExtractor = FaceEmbeddingExtractor(context)
 
     /**
      * Sinal compartilhado: quando o backend informa (via heartbeat ou via /status) que este

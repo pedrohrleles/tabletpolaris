@@ -42,6 +42,12 @@ android {
         compose = true
         buildConfig = true
     }
+
+    // MobileFaceNet.tflite precisa ir sem compressão no APK, senão o mmap direto do arquivo
+    // (usado pra carregar o modelo) falha.
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 dependencies {
@@ -70,6 +76,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.mlkit.face.detection)
+    implementation(libs.tensorflow.lite)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

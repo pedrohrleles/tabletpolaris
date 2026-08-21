@@ -7,6 +7,12 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
+
+// Tudo aqui é rede local (mesmo Wi-Fi do backend) — quando funciona, é rápido; quando não
+// funciona, precisa falhar rápido também. O padrão de 10s do OkHttp deixava a tela travada
+// (ex.: checagem de status antes de bater o ponto) esperando o timeout inteiro.
+private const val TIMEOUT_SEGUNDOS = 4L
 
 object PolarisApiClient {
 
@@ -25,6 +31,9 @@ object PolarisApiClient {
 
     private fun buildHttpClient(): OkHttpClient {
         val builder = OkHttpClient.Builder()
+            .connectTimeout(TIMEOUT_SEGUNDOS, TimeUnit.SECONDS)
+            .readTimeout(TIMEOUT_SEGUNDOS, TimeUnit.SECONDS)
+            .writeTimeout(TIMEOUT_SEGUNDOS, TimeUnit.SECONDS)
         if (BuildConfig.DEBUG) {
             val logging = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY

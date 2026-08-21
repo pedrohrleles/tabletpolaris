@@ -151,6 +151,7 @@ fun PolarisNavGraph(
                     modo = ModoCaptura.RECONHECIMENTO,
                     punchRepository = container.punchRepository,
                     colaboradorDao = container.colaboradorDao,
+                    faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
                     onPunchRegistered = { punchResult ->
@@ -162,6 +163,7 @@ fun PolarisNavGraph(
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
+                    onCadastroConcluido = {},
                     onCancel = { navController.popBackStack() }
                 )
             }
@@ -176,14 +178,15 @@ fun PolarisNavGraph(
                     modo = ModoCaptura.CADASTRO,
                     punchRepository = container.punchRepository,
                     colaboradorDao = container.colaboradorDao,
+                    faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
-                    onPunchRegistered = { punchResult ->
-                        val timestampMillis = punchResult.timestamp
-                            .atZone(ZoneId.systemDefault())
-                            .toInstant()
-                            .toEpochMilli()
-                        navController.navigate(PolarisDestinations.punchSuccess(matricula, timestampMillis)) {
+                    // Cadastro nunca bate ponto — só gera e salva o embedding.
+                    onPunchRegistered = {},
+                    onCadastroConcluido = {
+                        // Fluxo separado: depois de cadastrar, manda pro reconhecimento de
+                        // verdade, que é quem efetivamente registra a batida.
+                        navController.navigate(PolarisDestinations.facialCapture(matricula)) {
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },

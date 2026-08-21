@@ -24,6 +24,10 @@ interface ColaboradorDao {
     @Query("UPDATE colaborador SET embeddingFacial = :embedding WHERE matricula = :matricula")
     suspend fun salvarEmbedding(matricula: String, embedding: ByteArray)
 
+    /** Menu de debug temporário na tela de reconhecimento — força o recadastro de um colaborador. */
+    @Query("UPDATE colaborador SET embeddingFacial = NULL WHERE matricula = :matricula")
+    suspend fun removerEmbedding(matricula: String)
+
     /** Usado ao sincronizar o roster: preserva o embedding já cadastrado localmente em vez de
      *  deixar o upsert (que sobrescreve a linha inteira) apagar o cadastro facial existente. */
     @Query("SELECT embeddingFacial FROM colaborador WHERE matricula = :matricula")
