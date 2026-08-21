@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -18,7 +19,7 @@ android {
 
         // Backend Polaris RH rodando localmente na sua máquina (mesma rede Wi-Fi do tablet).
         // Trocar quando houver URL de produção ou voltar a testar contra o servidor de dev remoto.
-        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.10:3000/\"")
+        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.9:3000/\"")
     }
 
     buildTypes {
@@ -66,6 +67,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

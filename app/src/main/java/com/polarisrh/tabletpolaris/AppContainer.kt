@@ -1,11 +1,17 @@
 package com.polarisrh.tabletpolaris
 
 import android.content.Context
+import androidx.room.Room
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteDao
+import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
+import com.polarisrh.tabletpolaris.data.local.db.PolarisDatabase
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiClient
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
+import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceAuthRepository
+import com.polarisrh.tabletpolaris.data.repository.DeviceRevocationHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.FakePunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
@@ -18,9 +24,6 @@ class AppContainer(context: Context) {
 
     val polarisApiService: PolarisApiService = PolarisApiClient.service
 
-    val deviceAuthRepository: DeviceAuthRepository =
-        RemoteDeviceAuthRepository(context, polarisApiService, credentialsStore)
-
     val punchRepository: PunchRepository = FakePunchRepository()
 
     /**
@@ -32,9 +35,43 @@ class AppContainer(context: Context) {
 
     val networkMonitor: NetworkMonitor = NetworkMonitor(context)
 
-    val deviceStatusChecker: DeviceStatusChecker = DeviceStatusChecker(
-        api = polarisApiService,
+    /**
+     * Banco local (SQLite via Room) — roster de colaboradores (matrícula/cpf/nome/embedding
+     * facial) e fila de batidas offline. Nunca sincroniza com o Polaris RH além do roster em
+     * si; o embedding facial é gerado e lido só neste tablet.
+     */
+    private val database: PolarisDatabase = Room.databaseBuilder(
+        context.applicationContext,
+        PolarisDatabase::class.java,
+        "polaris.db"
+    ).build()
+
+    val colaboradorDao: ColaboradorDao = database.colaboradorDao()
+
+    val batidaPendenteDao: BatidaPendenteDao = database.batidaPendenteDao()
+
+    /**
+     * Único ponto que "desvincula" o tablet: limpa a sessão/credenciais. Não mexe no cache de
+     * colaboradores nem na fila de batidas — ver [DeviceRevocationHandler].
+     */
+    val deviceRevocationHandler: DeviceRevocationHandler = DeviceRevocationHandler(
         credentialsStore = credentialsStore,
         onRevoked = { message -> deviceRevocationMessage.value = message }
     )
+
+    val colaboradorSyncRepository: ColaboradorSyncRepository = ColaboradorSyncRepository(
+        api = polarisApiService,
+        credentialsStore = credentialsStore,
+        colaboradorDao = colaboradorDao
+    )
+
+    val deviceStatusChecker: DeviceStatusChecker = DeviceStatusChecker(
+        api = polarisApiService,
+        credentialsStore = credentialsStore,
+        colaboradorSyncRepository = colaboradorSyncRepository,
+        revocationHandler = deviceRevocationHandler
+    )
+
+    val deviceAuthRepository: DeviceAuthRepository =
+        RemoteDeviceAuthRepository(context, polarisApiService, credentialsStore, colaboradorSyncRepository)
 }

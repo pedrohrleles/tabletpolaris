@@ -4,6 +4,6 @@
          esta exceção assim que houver uma URL de produção com certificado válido. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">52.73.245.229</domain>
-        <domain includeSubdomains="false">192.168.1.10</domain>
+        <domain includeSubdomains="false">192.168.1.9</domain>
     </domain-config>
 </network-security-config>

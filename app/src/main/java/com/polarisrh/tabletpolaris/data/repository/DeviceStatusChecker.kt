@@ -3,7 +3,9 @@ package com.polarisrh.tabletpolaris.data.repository
 import android.util.Log
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
+import com.polarisrh.tabletpolaris.data.remote.dto.StatusResponse
 import java.io.IOException
+import java.time.Instant
 
 sealed interface DeviceStatusResult {
     data object Active : DeviceStatusResult
@@ -20,7 +22,8 @@ sealed interface DeviceStatusResult {
 class DeviceStatusChecker(
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
-    private val onRevoked: (String) -> Unit
+    private val colaboradorSyncRepository: ColaboradorSyncRepository,
+    private val revocationHandler: DeviceRevocationHandler
 ) {
     suspend fun checkNow(): DeviceStatusResult {
         val credentials = credentialsStore.read() ?: return DeviceStatusResult.Unknown
@@ -31,11 +34,13 @@ class DeviceStatusChecker(
                 bearerToken = "Bearer ${credentials.token}"
             )
             when {
-                response.isSuccessful -> DeviceStatusResult.Active
+                response.isSuccessful -> {
+                    sincronizarColaboradoresSeNecessario(response.body())
+                    DeviceStatusResult.Active
+                }
                 response.code() == 401 -> {
-                    Log.w(TAG, "Coletor desativado remotamente — limpando credenciais locais.")
-                    credentialsStore.clear()
-                    onRevoked("Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação.")
+                    Log.w(TAG, "Coletor desativado remotamente — desvinculando.")
+                    revocationHandler.revoke("Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação.")
                     DeviceStatusResult.Revoked
                 }
                 else -> {
@@ -46,6 +51,20 @@ class DeviceStatusChecker(
         } catch (e: IOException) {
             Log.w(TAG, "Status sem conexão, tentando de novo mais tarde: ${e.message}")
             DeviceStatusResult.Unknown
+        }
+    }
+
+    /** dt_cadastro_alterado mais recente que a última sincronização aplicada = alguém foi
+     *  admitido/desligado desde então — busca só o delta em vez de esperar outro gatilho. */
+    private suspend fun sincronizarColaboradoresSeNecessario(body: StatusResponse?) {
+        val dtCadastroAlterado = body?.dtCadastroAlterado ?: return
+        val ultimaSincronizacao = credentialsStore.ultimaSincronizacaoColaboradores()
+
+        val precisaSincronizar = ultimaSincronizacao == null ||
+            Instant.parse(dtCadastroAlterado) > Instant.parse(ultimaSincronizacao)
+
+        if (precisaSincronizar) {
+            colaboradorSyncRepository.sincronizarDelta()
         }
     }
 

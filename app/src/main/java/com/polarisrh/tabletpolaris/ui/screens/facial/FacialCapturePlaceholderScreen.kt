@@ -38,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
@@ -58,7 +59,9 @@ private val StatusBarIdleColor = PolarisMuted.copy(alpha = 0.25f)
 @Composable
 fun FacialCapturePlaceholderScreen(
     matricula: String,
+    modo: ModoCaptura,
     punchRepository: PunchRepository,
+    colaboradorDao: ColaboradorDao,
     deviceStatusChecker: DeviceStatusChecker,
     networkMonitor: NetworkMonitor,
     onPunchRegistered: (PunchResult) -> Unit,
@@ -66,10 +69,13 @@ fun FacialCapturePlaceholderScreen(
 ) {
     val viewModel: FacialCaptureViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { FacialCaptureViewModel(punchRepository, deviceStatusChecker, networkMonitor) }
+            initializer {
+                FacialCaptureViewModel(modo, punchRepository, colaboradorDao, deviceStatusChecker, networkMonitor)
+            }
         }
     )
     val uiState by viewModel.uiState.collectAsState()
+    val isCadastro = modo == ModoCaptura.CADASTRO
 
     Column(modifier = Modifier.fillMaxSize()) {
 
@@ -85,7 +91,7 @@ fun FacialCapturePlaceholderScreen(
         ) {
             Column {
                 Text(
-                    text = "Reconhecimento Facial",
+                    text = if (isCadastro) "Cadastrar Facial" else "Reconhecimento Facial",
                     style = MaterialTheme.typography.headlineMedium,
                     color = PolarisOnPrimary
                 )
@@ -205,7 +211,12 @@ fun FacialCapturePlaceholderScreen(
                     .height(76.dp)
             ) {
                 Text(
-                    text = if (uiState.isScanning) "Identificando..." else "Simular reconhecimento",
+                    text = when {
+                        uiState.isScanning && isCadastro -> "Cadastrando..."
+                        uiState.isScanning -> "Identificando..."
+                        isCadastro -> "Cadastrar rosto"
+                        else -> "Simular reconhecimento"
+                    },
                     style = MaterialTheme.typography.labelLarge
                 )
             }

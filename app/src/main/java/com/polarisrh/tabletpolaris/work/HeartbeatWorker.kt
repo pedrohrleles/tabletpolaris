@@ -54,10 +54,10 @@ class HeartbeatWorker(
 
             if (response.isSuccessful && body != null) {
                 if (!body.flAtivo) {
-                    Log.w(TAG, "Coletor desativado remotamente — limpando credenciais locais.")
-                    container.credentialsStore.clear()
-                    container.deviceRevocationMessage.value =
+                    Log.w(TAG, "Coletor desativado remotamente — desvinculando.")
+                    container.deviceRevocationHandler.revoke(
                         "Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação."
+                    )
                 }
                 Result.success()
             } else {

@@ -16,7 +16,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.polarisrh.tabletpolaris.AppContainer
 import com.polarisrh.tabletpolaris.ui.screens.clockin.ClockInScreen
+import com.polarisrh.tabletpolaris.ui.screens.confirm.IdentityConfirmationScreen
 import com.polarisrh.tabletpolaris.ui.screens.facial.FacialCapturePlaceholderScreen
+import com.polarisrh.tabletpolaris.ui.screens.facial.ModoCaptura
 import com.polarisrh.tabletpolaris.ui.screens.setup.DeviceSetupScreen
 import com.polarisrh.tabletpolaris.ui.screens.splash.SplashScreen
 import com.polarisrh.tabletpolaris.ui.screens.success.PunchSuccessScreen
@@ -26,10 +28,14 @@ object PolarisDestinations {
     const val SPLASH = "splash"
     const val DEVICE_SETUP = "device_setup"
     const val CLOCK_IN = "clock_in"
+    const val IDENTITY_CONFIRMATION = "confirmar_identidade/{matricula}"
     const val FACIAL_CAPTURE = "facial_capture/{matricula}"
+    const val FACIAL_ENROLLMENT = "cadastro_facial/{matricula}"
     const val PUNCH_SUCCESS = "punch_success/{matricula}/{timestamp}"
 
+    fun identityConfirmation(matricula: String) = "confirmar_identidade/$matricula"
     fun facialCapture(matricula: String) = "facial_capture/$matricula"
+    fun facialEnrollment(matricula: String) = "cadastro_facial/$matricula"
     fun punchSuccess(matricula: String, timestampMillis: Long) = "punch_success/$matricula/$timestampMillis"
 }
 
@@ -91,9 +97,28 @@ fun PolarisNavGraph(
                 ClockInScreen(
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
-                    onMatriculaConfirmed = { matricula ->
+                    colaboradorDao = container.colaboradorDao,
+                    onReconhecerFacial = { matricula ->
                         navController.navigate(PolarisDestinations.facialCapture(matricula))
+                    },
+                    onPrecisarConfirmarIdentidade = { matricula ->
+                        navController.navigate(PolarisDestinations.identityConfirmation(matricula))
                     }
+                )
+            }
+
+            composable(
+                route = PolarisDestinations.IDENTITY_CONFIRMATION,
+                arguments = listOf(navArgument("matricula") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val matricula = backStackEntry.arguments?.getString("matricula").orEmpty()
+                IdentityConfirmationScreen(
+                    matricula = matricula,
+                    colaboradorDao = container.colaboradorDao,
+                    onConfirmado = {
+                        navController.navigate(PolarisDestinations.facialEnrollment(matricula))
+                    },
+                    onNegado = { navController.popBackStack() }
                 )
             }
 
@@ -104,7 +129,34 @@ fun PolarisNavGraph(
                 val matricula = backStackEntry.arguments?.getString("matricula").orEmpty()
                 FacialCapturePlaceholderScreen(
                     matricula = matricula,
+                    modo = ModoCaptura.RECONHECIMENTO,
                     punchRepository = container.punchRepository,
+                    colaboradorDao = container.colaboradorDao,
+                    deviceStatusChecker = container.deviceStatusChecker,
+                    networkMonitor = container.networkMonitor,
+                    onPunchRegistered = { punchResult ->
+                        val timestampMillis = punchResult.timestamp
+                            .atZone(ZoneId.systemDefault())
+                            .toInstant()
+                            .toEpochMilli()
+                        navController.navigate(PolarisDestinations.punchSuccess(matricula, timestampMillis)) {
+                            popUpTo(PolarisDestinations.CLOCK_IN)
+                        }
+                    },
+                    onCancel = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = PolarisDestinations.FACIAL_ENROLLMENT,
+                arguments = listOf(navArgument("matricula") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val matricula = backStackEntry.arguments?.getString("matricula").orEmpty()
+                FacialCapturePlaceholderScreen(
+                    matricula = matricula,
+                    modo = ModoCaptura.CADASTRO,
+                    punchRepository = container.punchRepository,
+                    colaboradorDao = container.colaboradorDao,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
                     onPunchRegistered = { punchResult ->

@@ -58,8 +58,49 @@ class DeviceCredentialsStore(context: Context) {
         )
     }
 
+    /**
+     * Limpa só a sessão/credenciais (token, ids, etc). Propositalmente NÃO mexe nas chaves de
+     * cache de colaboradores ([idEstabelecimentoColaboradoresCache]/[ultimaSincronizacaoColaboradores])
+     * — a decisão de preservar ou zerar esse cache só é tomada na próxima ativação, quando dá
+     * pra comparar o estabelecimento novo com o que estava salvo. Ver [salvarIdEstabelecimentoColaboradoresCache].
+     */
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .remove(KEY_TOKEN)
+            .remove(KEY_ID_COLETOR)
+            .remove(KEY_ID_COLETOR_LOGICO)
+            .remove(KEY_ID_EMPREGADOR)
+            .remove(KEY_ID_ESTABELECIMENTO)
+            .remove(KEY_NOME_EMPREGADOR)
+            .remove(KEY_TIMEZONE)
+            .apply()
+    }
+
+    /** dt_sincronizacao da última carga (completa ou incremental) de colaboradores aplicada
+     *  com sucesso — comparado contra dt_cadastro_alterado do /status pra saber se precisa
+     *  sincronizar de novo. */
+    fun ultimaSincronizacaoColaboradores(): String? = prefs.getString(KEY_ULTIMA_SYNC_COLABORADORES, null)
+
+    fun salvarUltimaSincronizacaoColaboradores(dtSincronizacao: String) {
+        prefs.edit().putString(KEY_ULTIMA_SYNC_COLABORADORES, dtSincronizacao).apply()
+    }
+
+    /** A qual estabelecimento (local de trabalho) pertence o cache local de colaboradores
+     *  (embeddings inclusive) atualmente salvo — usado na próxima ativação pra decidir se
+     *  preserva ou zera o cache. Uma empresa pode ter vários estabelecimentos: o roster de
+     *  colaboradores é filtrado por estabelecimento no backend, então é nesse nível que a
+     *  comparação precisa acontecer, não no nível de empresa. */
+    fun idEstabelecimentoColaboradoresCache(): String? = prefs.getString(KEY_ID_ESTABELECIMENTO_COLABORADORES_CACHE, null)
+
+    fun salvarIdEstabelecimentoColaboradoresCache(idEstabelecimento: String) {
+        prefs.edit().putString(KEY_ID_ESTABELECIMENTO_COLABORADORES_CACHE, idEstabelecimento).apply()
+    }
+
+    fun limparCacheColaboradores() {
+        prefs.edit()
+            .remove(KEY_ID_ESTABELECIMENTO_COLABORADORES_CACHE)
+            .remove(KEY_ULTIMA_SYNC_COLABORADORES)
+            .apply()
     }
 
     private companion object {
@@ -71,5 +112,7 @@ class DeviceCredentialsStore(context: Context) {
         const val KEY_ID_ESTABELECIMENTO = "id_estabelecimento"
         const val KEY_NOME_EMPREGADOR = "nome_empregador"
         const val KEY_TIMEZONE = "timezone"
+        const val KEY_ULTIMA_SYNC_COLABORADORES = "ultima_sincronizacao_colaboradores"
+        const val KEY_ID_ESTABELECIMENTO_COLABORADORES_CACHE = "id_estabelecimento_colaboradores_cache"
     }
 }

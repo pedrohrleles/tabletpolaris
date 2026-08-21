@@ -2,6 +2,7 @@ package com.polarisrh.tabletpolaris.data.remote
 
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletResponse
+import com.polarisrh.tabletpolaris.data.remote.dto.ColaboradoresSyncResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.HeartbeatRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.HeartbeatResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.StatusResponse
@@ -11,6 +12,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface PolarisApiService {
 
@@ -32,4 +34,14 @@ interface PolarisApiService {
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String
     ): Response<StatusResponse>
+
+    // Paginado — segue chamando com cursor = proximo_cursor da resposta anterior até vir null.
+    @GET("coletores/{idColetor}/colaboradores")
+    suspend fun listarColaboradores(
+        @Path("idColetor") idColetor: String,
+        @Header("Authorization") bearerToken: String,
+        @Query("desde") desde: String? = null,
+        @Query("cursor") cursor: String? = null,
+        @Query("limite") limite: Int? = null
+    ): Response<ColaboradoresSyncResponse>
 }

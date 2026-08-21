@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.ui.components.NumericKeypad
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
@@ -42,19 +44,23 @@ import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
 /** Safety cap only — matrícula is a growing numeric id (1, 2, 3, ...), not a fixed-length code. */
 private const val MAX_MATRICULA_LENGTH = 10
 
+/** Prefixo fixo de toda matrícula no Polaris RH (ex.: "MAT-1042") — só o número é digitado. */
+private const val MATRICULA_PREFIX = "MAT-"
+
 @Composable
 fun ClockInScreen(
     deviceStatusChecker: DeviceStatusChecker,
     networkMonitor: NetworkMonitor,
-    onMatriculaConfirmed: (String) -> Unit
+    colaboradorDao: ColaboradorDao,
+    onReconhecerFacial: (String) -> Unit,
+    onPrecisarConfirmarIdentidade: (String) -> Unit
 ) {
-    // Não usa UI state daqui — só mantém vivo o polling de status (30s) e a checagem ao
-    // recuperar rede enquanto essa tela estiver aberta.
-    viewModel<ClockInViewModel>(
+    val viewModel: ClockInViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { ClockInViewModel(deviceStatusChecker, networkMonitor) }
+            initializer { ClockInViewModel(deviceStatusChecker, networkMonitor, colaboradorDao) }
         }
     )
+    val uiState by viewModel.uiState.collectAsState()
 
     var matricula by remember { mutableStateOf("") }
 
@@ -105,11 +111,26 @@ fun ClockInScreen(
                 }
             )
 
+            uiState.erro?.let { mensagem ->
+                Text(
+                    text = mensagem,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 20.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(36.dp))
 
             Button(
-                onClick = { onMatriculaConfirmed(matricula) },
-                enabled = matricula.isNotEmpty(),
+                onClick = {
+                    viewModel.confirmarMatricula(
+                        matricula = MATRICULA_PREFIX + matricula,
+                        aoReconhecerFacial = onReconhecerFacial,
+                        aoPrecisarConfirmarIdentidade = onPrecisarConfirmarIdentidade
+                    )
+                },
+                enabled = matricula.isNotEmpty() && !uiState.isVerificandoMatricula,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(76.dp)
@@ -132,7 +153,7 @@ private fun MatriculaField(matricula: String) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = matricula,
+                text = MATRICULA_PREFIX + matricula,
                 style = MaterialTheme.typography.headlineSmall
             )
             BlinkingCursor()

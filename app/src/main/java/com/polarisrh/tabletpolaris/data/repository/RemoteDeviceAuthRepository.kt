@@ -11,6 +11,7 @@ import com.polarisrh.tabletpolaris.data.local.DeviceTelemetryCollector
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.ErroResponse
+import com.polarisrh.tabletpolaris.work.ColaboradorSyncWorker
 import com.polarisrh.tabletpolaris.work.HeartbeatWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -27,6 +28,7 @@ class RemoteDeviceAuthRepository(
     private val context: Context,
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
+    private val colaboradorSyncRepository: ColaboradorSyncRepository,
     private val deviceKeyManager: DeviceKeyManager = DeviceKeyManager(),
     private val telemetryCollector: DeviceTelemetryCollector = DeviceTelemetryCollector(context)
 ) : DeviceAuthRepository {
@@ -68,6 +70,12 @@ class RemoteDeviceAuthRepository(
                     )
                 }
 
+                // Decide, antes de salvar a sessão nova, se o cache local de colaboradores
+                // (embeddings inclusive) deve ser preservado (mesmo estabelecimento de antes)
+                // ou zerado (estabelecimento diferente). Usa local.id (sempre presente) em vez
+                // de idEstabelecimento (nullable) pra essa comparação.
+                colaboradorSyncRepository.prepararParaAtivacao(body.local.id)
+
                 credentialsStore.save(
                     DeviceCredentials(
                         token = body.token,
@@ -81,7 +89,10 @@ class RemoteDeviceAuthRepository(
                 )
                 // O worker periódico só roda pela 1ª vez depois de 15min do agendamento — sem
                 // isso o tablet ficaria reportando dados desatualizados até lá.
-                WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<HeartbeatWorker>().build())
+                val workManager = WorkManager.getInstance(context)
+                workManager.enqueue(OneTimeWorkRequestBuilder<HeartbeatWorker>().build())
+                // Puxa o roster de colaboradores assim que o tablet fica vinculado a uma empresa.
+                workManager.enqueue(OneTimeWorkRequestBuilder<ColaboradorSyncWorker>().build())
                 Result.success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string()

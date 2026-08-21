@@ -3,24 +3,35 @@ package com.polarisrh.tabletpolaris.ui.screens.clockin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val STATUS_POLL_INTERVAL_MS = 30_000L
 
-/**
- * Sem estado de UI próprio — existe só pra manter viva, enquanto a tela de ponto estiver
- * aberta, a checagem periódica de status (30s) e a checagem imediata quando a rede volta.
- * Some junto com a tela (viewModelScope é cancelado), então parar de bater ponto = parar de
- * pollar; é intencional, o heartbeat de 15min continua cobrindo o app em background.
- */
+data class ClockInUiState(
+    val isVerificandoMatricula: Boolean = false,
+    val erro: String? = null
+)
+
 class ClockInViewModel(
     private val deviceStatusChecker: DeviceStatusChecker,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val colaboradorDao: ColaboradorDao
 ) : ViewModel() {
 
+    private val _uiState = MutableStateFlow(ClockInUiState())
+    val uiState: StateFlow<ClockInUiState> = _uiState
+
     init {
+        // Enquanto a tela de ponto estiver aberta: reage a quedas/retomadas de rede
+        // verificando o status na hora que a rede volta, e mantém um polling de 30s
+        // enquanto estiver online — assim uma desativação é percebida quase na hora,
+        // sem depender só do heartbeat de 15min.
         viewModelScope.launch {
             networkMonitor.isOnline.collect { online ->
                 if (online) deviceStatusChecker.checkNow()
@@ -32,6 +43,32 @@ class ClockInViewModel(
                 if (networkMonitor.isOnline.value) {
                     deviceStatusChecker.checkNow()
                 }
+            }
+        }
+    }
+
+    /**
+     * Busca a matrícula no roster local e decide o próximo passo: quem já tem embedding vai
+     * direto pro reconhecimento; quem não tem passa antes pela confirmação de identidade
+     * ("Você é o João?"), pra evitar que alguém cadastre o rosto errado numa matrícula alheia.
+     */
+    fun confirmarMatricula(
+        matricula: String,
+        aoReconhecerFacial: (String) -> Unit,
+        aoPrecisarConfirmarIdentidade: (String) -> Unit
+    ) {
+        if (_uiState.value.isVerificandoMatricula) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isVerificandoMatricula = true, erro = null) }
+            val colaborador = colaboradorDao.buscarPorMatricula(matricula)
+            _uiState.update { it.copy(isVerificandoMatricula = false) }
+
+            when {
+                colaborador == null -> _uiState.update { it.copy(erro = "Matrícula não encontrada") }
+                !colaborador.ativo -> _uiState.update { it.copy(erro = "Colaborador inativo") }
+                colaborador.embeddingFacial != null -> aoReconhecerFacial(matricula)
+                else -> aoPrecisarConfirmarIdentidade(matricula)
             }
         }
     }

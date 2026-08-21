@@ -3,6 +3,7 @@ package com.polarisrh.tabletpolaris.ui.screens.facial
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
+import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusResult
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
@@ -16,6 +17,10 @@ import kotlinx.coroutines.launch
 private const val SCAN_STEPS = 40
 private const val SCAN_STEP_DELAY_MS = 45L
 
+/** RECONHECIMENTO = colaborador já tem embedding, só bate o ponto. CADASTRO = primeira vez —
+ *  grava o embedding (hoje ainda falso) antes de completar a batida. */
+enum class ModoCaptura { RECONHECIMENTO, CADASTRO }
+
 data class FacialCaptureUiState(
     val isScanning: Boolean = false,
     val scanProgress: Float = 0f,
@@ -23,7 +28,9 @@ data class FacialCaptureUiState(
 )
 
 class FacialCaptureViewModel(
+    private val modo: ModoCaptura,
     private val punchRepository: PunchRepository,
+    private val colaboradorDao: ColaboradorDao,
     private val deviceStatusChecker: DeviceStatusChecker,
     private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
@@ -31,7 +38,8 @@ class FacialCaptureViewModel(
     private val _uiState = MutableStateFlow(FacialCaptureUiState())
     val uiState: StateFlow<FacialCaptureUiState> = _uiState
 
-    /** Drives the "reading your face" progress bar; the real scan/match logic arrives later. */
+    /** Drives the "reading your face" progress bar; the real scan/match/embedding logic
+     *  (geração de verdade do embedding, comparação facial) arrives later. */
     fun startScan(matricula: String, onSuccess: (PunchResult) -> Unit) {
         if (_uiState.value.isScanning) return
 
@@ -53,6 +61,11 @@ class FacialCaptureViewModel(
                     _uiState.update { it.copy(isScanning = false) }
                     return@launch
                 }
+            }
+
+            if (modo == ModoCaptura.CADASTRO) {
+                // Placeholder — a geração real do embedding entra numa fase futura.
+                colaboradorDao.salvarEmbedding(matricula, ByteArray(0))
             }
 
             val result = punchRepository.registerPunch(matricula)
