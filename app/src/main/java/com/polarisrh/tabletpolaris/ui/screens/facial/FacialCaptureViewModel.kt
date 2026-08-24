@@ -59,9 +59,11 @@ private const val DURACAO_CADASTRO_MS = 3000L
 private const val INTERVALO_AMOSTRA_MS = 750L
 
 /** Reconhecimento também colhe amostras por um tempo antes de decidir — sem isso, a checagem
- *  é tão rápida que o resultado parece aparecer "antes" de qualquer verificação de verdade. */
-private const val DURACAO_RECONHECIMENTO_MS = 2000L
-private const val INTERVALO_AMOSTRA_RECONHECIMENTO_MS = 500L
+ *  é tão rápida que o resultado parece aparecer "antes" de qualquer verificação de verdade.
+ *  Duração e intervalo reduzidos (mantendo as mesmas ~4 amostras de antes, só num intervalo de
+ *  tempo mais curto) pra bater ponto mais rápido sem colher menos amostra pra média. */
+private const val DURACAO_RECONHECIMENTO_MS = 1400L
+private const val INTERVALO_AMOSTRA_RECONHECIMENTO_MS = 350L
 
 /** Espera depois de uma falha de reconhecimento antes de deixar tentar de novo sozinho — sem
  *  isso, com o rosto ainda no enquadramento, ficava tentando e falhando em loop imediato. */
@@ -176,16 +178,15 @@ class FacialCaptureViewModel(
     }
 
     /**
-     * Captura um frame, detecta o rosto nele e recorta ao redor do bounding box detectado
-     * (não da área fixa do oval na tela) antes de gerar o embedding — garante que a proporção
-     * rosto/recorte seja sempre a mesma, não importa a distância da câmera. Recortar pela área
-     * fixa do oval fazia a similaridade cair conforme o usuário se afastava um pouco entre o
-     * cadastro e o reconhecimento, mesmo sendo a mesma pessoa.
+     * Captura um frame e gera um recorte ALINHADO pelos olhos (rotacionado/escalado pra
+     * posição canônica, ver [FacePositionChecker.detectarEAlinhar]) antes de extrair o
+     * embedding — sem isso, a similaridade variava com inclinação da cabeça, distância da
+     * câmera e até mudança de penteado (recorte só pelo bounding box inclui cabelo/fundo de
+     * forma inconsistente).
      */
     private suspend fun amostrarEmbedding(): FloatArray? {
         val frame = capturarFrameBruto?.invoke() ?: return null
-        val box = facePositionChecker.detectarRostoUnico(frame) ?: return null
-        val rosto = facePositionChecker.recortarRosto(frame, box)
+        val rosto = facePositionChecker.detectarEAlinhar(frame) ?: return null
         return withContext(Dispatchers.Default) { faceEmbeddingExtractor.extrair(rosto) }
     }
 

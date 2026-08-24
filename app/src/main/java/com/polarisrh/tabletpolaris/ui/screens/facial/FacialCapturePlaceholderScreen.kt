@@ -2,6 +2,9 @@ package com.polarisrh.tabletpolaris.ui.screens.facial
 
 import android.graphics.Bitmap
 import android.graphics.Rect as AndroidRect
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +59,7 @@ import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
 import com.polarisrh.tabletpolaris.facial.FaceDetectionStatus
 import com.polarisrh.tabletpolaris.facial.FaceEmbeddingExtractor
+import com.polarisrh.tabletpolaris.ui.components.AnimatedCheckmark
 import com.polarisrh.tabletpolaris.ui.components.FrontCameraPreview
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlue
@@ -113,6 +117,7 @@ fun FacialCapturePlaceholderScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isCadastro = modo == ModoCaptura.CADASTRO
     var showMenuDebug by remember { mutableStateOf(false) }
+    var nomeColaborador by remember { mutableStateOf<String?>(null) }
     var capturarFrameBruto by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
     var boxSizePx by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
@@ -126,6 +131,10 @@ fun FacialCapturePlaceholderScreen(
     // recorte usado pro embedding em si também é feito pelo ViewModel, ao redor do rosto
     // DETECTADO em cada amostra — não da área fixa do oval — pra similaridade não variar
     // conforme a distância da câmera entre cadastro e reconhecimento.
+    LaunchedEffect(matricula) {
+        nomeColaborador = colaboradorDao.buscarPorMatricula(matricula)?.nome
+    }
+
     LaunchedEffect(Unit) {
         viewModel.iniciar(
             capturarFrameBruto = { capturarFrameBruto?.invoke() },
@@ -141,6 +150,11 @@ fun FacialCapturePlaceholderScreen(
             delay(DELAY_APOS_CADASTRO_MS)
             onCadastroConcluido()
         }
+    }
+
+    if (uiState.cadastroConcluido) {
+        FacialCadastradaSucesso(nomeColaborador = nomeColaborador, matricula = matricula)
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -161,11 +175,18 @@ fun FacialCapturePlaceholderScreen(
                     style = MaterialTheme.typography.headlineMedium,
                     color = PolarisOnPrimary
                 )
+                nomeColaborador?.let { nome ->
+                    Text(
+                        text = nome,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = PolarisOnPrimary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
                 Text(
                     text = "Matrícula: $matricula",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = PolarisMuted,
-                    modifier = Modifier.padding(top = 4.dp)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = PolarisMuted
                 )
             }
             // Menu temporário de debug — só no reconhecimento, remove quando não precisar mais.
@@ -197,7 +218,15 @@ fun FacialCapturePlaceholderScreen(
         }
 
         // A barra acompanha o progresso real do pipeline (captura → embedding → checagem →
-        // resultado), não uma animação — cada salto é uma etapa de verdade concluída.
+        // resultado) — os saltos de valor são de verdade (cada amostra colhida a cada
+        // ~500-750ms), mas a barra em si interpola visualmente entre um valor e outro em vez
+        // de pular, sem atrasar nem alterar o tempo real de nenhuma etapa (é só a
+        // representação visual que suaviza).
+        val progressoAnimado by animateFloatAsState(
+            targetValue = uiState.scanProgress.coerceIn(0f, 1f),
+            animationSpec = tween(durationMillis = 400, easing = LinearEasing),
+            label = "scanProgress"
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,8 +236,8 @@ fun FacialCapturePlaceholderScreen(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(fraction = uiState.scanProgress.coerceIn(0f, 1f))
-                    .background(scanColorFor(uiState.scanProgress))
+                    .fillMaxWidth(fraction = progressoAnimado)
+                    .background(scanColorFor(progressoAnimado))
             )
         }
 
@@ -271,7 +300,6 @@ fun FacialCapturePlaceholderScreen(
             // acontece durante o cooldown pós-falha, antes da nova tentativa automática), mostra
             // o erro em vez do "Rosto posicionado corretamente" genérico.
             val (statusMessage, statusColor) = when {
-                uiState.cadastroConcluido -> "Facial cadastrada com sucesso!" to PolarisSuccess
                 uiState.isScanning && isCadastro -> "Mantenha o rosto parado..." to PolarisSuccess
                 uiState.isScanning -> "Verificando rosto..." to PolarisSuccess
                 uiState.faceDetectionStatus == FaceDetectionStatus.SemRosto -> "Nenhum rosto detectado" to PolarisOnPrimary
@@ -305,13 +333,58 @@ fun FacialCapturePlaceholderScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            TextButton(onClick = onCancel, enabled = !uiState.isScanning && !uiState.cadastroConcluido) {
+            TextButton(onClick = onCancel, enabled = !uiState.isScanning) {
                 Text(
                     "Cancelar",
                     style = MaterialTheme.typography.bodyLarge,
                     color = PolarisOnPrimary
                 )
             }
+        }
+    }
+}
+
+/** Tela cheia de confirmação, no mesmo estilo do "Ponto registrado!" — mais fácil de entender
+ *  que o cadastro terminou do que só um texto verde por cima da câmera. */
+@Composable
+private fun FacialCadastradaSucesso(nomeColaborador: String?, matricula: String) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        PolarisLogoMark(
+            size = 64.dp,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(48.dp)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            AnimatedCheckmark(color = PolarisSuccess)
+
+            Text(
+                text = "Facial cadastrada com sucesso!",
+                style = MaterialTheme.typography.headlineLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 32.dp)
+            )
+            nomeColaborador?.let { nome ->
+                Text(
+                    text = nome,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = PolarisMuted,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+            Text(
+                text = "Matrícula $matricula",
+                style = MaterialTheme.typography.bodyLarge,
+                color = PolarisMuted,
+                modifier = Modifier.padding(top = if (nomeColaborador != null) 4.dp else 12.dp)
+            )
         }
     }
 }
