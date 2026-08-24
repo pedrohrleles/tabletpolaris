@@ -19,7 +19,7 @@ android {
 
         // Backend Polaris RH rodando localmente na sua máquina (mesma rede Wi-Fi do tablet).
         // Trocar quando houver URL de produção ou voltar a testar contra o servidor de dev remoto.
-        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.9:3000/\"")
+        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.5:3000/\"")
     }
 
     buildTypes {
@@ -41,6 +41,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // MobileFaceNet.tflite precisa ir sem compressão no APK, senão o mmap direto do arquivo
+    // (usado pra carregar o modelo) falha.
+    androidResources {
+        noCompress += "tflite"
     }
 }
 
@@ -70,6 +76,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.mlkit.face.detection)
+    implementation(libs.tensorflow.lite)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

@@ -29,10 +29,14 @@ import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteDao
 import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteEntity
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorEntity
+import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
+import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoEntity
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
+import com.polarisrh.tabletpolaris.ui.theme.PolarisError
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnPrimary
+import com.polarisrh.tabletpolaris.ui.theme.PolarisSuccess
 import com.polarisrh.tabletpolaris.ui.theme.PolarisSurfaceDark
 
 /** Tela temporária de debug — inspeciona o banco local direto pelo tablet, sem PC. Remover
@@ -41,14 +45,17 @@ import com.polarisrh.tabletpolaris.ui.theme.PolarisSurfaceDark
 fun DatabaseViewerScreen(
     colaboradorDao: ColaboradorDao,
     batidaPendenteDao: BatidaPendenteDao,
+    tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     onBack: () -> Unit
 ) {
     var colaboradores by remember { mutableStateOf<List<ColaboradorEntity>>(emptyList()) }
     var batidas by remember { mutableStateOf<List<BatidaPendenteEntity>>(emptyList()) }
+    var tentativas by remember { mutableStateOf<List<TentativaReconhecimentoEntity>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         colaboradores = colaboradorDao.listarTodos()
         batidas = batidaPendenteDao.listarPendentes()
+        tentativas = tentativaReconhecimentoDao.listarTodas()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -79,7 +86,7 @@ fun DatabaseViewerScreen(
         ) {
             item {
                 Text(
-                    text = "colaborador (${colaboradores.size})",
+                    text = "rep_core_biometria_facial (${colaboradores.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -143,6 +150,46 @@ fun DatabaseViewerScreen(
                 item {
                     Text(
                         text = "Nenhuma batida pendente.",
+                        color = PolarisMuted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            item {
+                Text(
+                    text = "rep_aud_biometria_log (${tentativas.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                )
+            }
+            items(tentativas) { tentativa ->
+                TabelaLinha {
+                    Text(
+                        text = "${tentativa.matricula} — similaridade ${"%.3f".format(tentativa.similaridadeCalculada)} " +
+                            "(limiar ${"%.2f".format(tentativa.limiarAplicado)})",
+                        color = if (tentativa.sucesso) PolarisSuccess else PolarisError,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "sucesso: ${tentativa.sucesso}" +
+                            (tentativa.mensagemErro?.let { " · $it" } ?: ""),
+                        color = PolarisMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "dtTentativa: ${tentativa.dtTentativa}",
+                        color = PolarisMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            if (tentativas.isEmpty()) {
+                item {
+                    Text(
+                        text = "Nenhuma tentativa de reconhecimento registrada ainda.",
                         color = PolarisMuted,
                         style = MaterialTheme.typography.bodyMedium
                     )

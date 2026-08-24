@@ -2,6 +2,7 @@ package com.polarisrh.tabletpolaris.ui.components
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -23,11 +24,20 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 
 /**
- * Live front-camera feed, no face detection or recognition wired in yet — this is purely
- * the visual "camera is on" layer the face guide/overlays sit on top of.
+ * Live front-camera feed.
+ *
+ * [onCapturaDisponivel], se passado, é chamado uma vez com uma função que devolve um snapshot
+ * do frame exibido no momento em que for chamada (via PreviewView.bitmap — já vem corrigido
+ * de rotação/espelhamento, exatamente como aparece na tela). É essa mesma função que é usada
+ * tanto pra capturar o rosto pro embedding quanto pra checar o enquadramento (ver
+ * [com.polarisrh.tabletpolaris.facial.FacePositionChecker]) — não existe mais um stream de
+ * análise separado da câmera, que tinha campo de visão diferente do que aparece na tela.
  */
 @Composable
-fun FrontCameraPreview(modifier: Modifier = Modifier) {
+fun FrontCameraPreview(
+    modifier: Modifier = Modifier,
+    onCapturaDisponivel: ((() -> Bitmap?) -> Unit)? = null
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -59,6 +69,7 @@ fun FrontCameraPreview(modifier: Modifier = Modifier) {
                     // our header) instead of respecting normal Compose layout/z-order.
                     implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                 }
+                onCapturaDisponivel?.invoke { previewView.bitmap }
                 val cameraProviderFuture = ProcessCameraProvider.getInstance(viewContext)
                 cameraProviderFuture.addListener(
                     {
@@ -66,6 +77,7 @@ fun FrontCameraPreview(modifier: Modifier = Modifier) {
                         val preview = Preview.Builder().build().apply {
                             surfaceProvider = previewView.surfaceProvider
                         }
+
                         cameraProvider.unbindAll()
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
