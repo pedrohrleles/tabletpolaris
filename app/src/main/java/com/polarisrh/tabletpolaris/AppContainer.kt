@@ -7,6 +7,8 @@ import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteDao
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_1_2
+import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_2_3
+import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_3_4
 import com.polarisrh.tabletpolaris.data.local.db.PolarisDatabase
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiClient
@@ -51,7 +53,7 @@ class AppContainer(context: Context) {
         PolarisDatabase::class.java,
         "polaris.db"
     )
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
         .build()
 
     val colaboradorDao: ColaboradorDao = database.colaboradorDao()

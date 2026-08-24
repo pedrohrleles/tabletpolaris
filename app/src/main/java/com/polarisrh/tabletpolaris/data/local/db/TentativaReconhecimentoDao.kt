@@ -10,9 +10,9 @@ interface TentativaReconhecimentoDao {
     @Insert
     suspend fun inserir(tentativa: TentativaReconhecimentoEntity)
 
-    @Query("SELECT * FROM tentativa_reconhecimento ORDER BY id DESC")
+    @Query("SELECT * FROM rep_aud_biometria_log ORDER BY id DESC")
     suspend fun listarTodas(): List<TentativaReconhecimentoEntity>
 
-    @Query("SELECT * FROM tentativa_reconhecimento WHERE matricula = :matricula ORDER BY id DESC")
+    @Query("SELECT * FROM rep_aud_biometria_log WHERE num_matricula = :matricula ORDER BY id DESC")
     suspend fun listarPorMatricula(matricula: String): List<TentativaReconhecimentoEntity>
 }

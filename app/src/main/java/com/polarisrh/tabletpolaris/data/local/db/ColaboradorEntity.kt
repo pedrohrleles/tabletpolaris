@@ -1,5 +1,6 @@
 package com.polarisrh.tabletpolaris.data.local.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -7,16 +8,18 @@ import androidx.room.PrimaryKey
  * Espelha 1:1 os campos de GET /coletores/{idColetor}/colaboradores (nr_matricula, nr_cpf,
  * nm_colaborador, fl_ativo, atualizado_em) — exceto [embeddingFacial], que nunca vem do
  * backend: só é preenchido localmente quando o colaborador faz "Cadastrar Facial" neste
- * tablet, e nunca é enviado de volta pro servidor.
+ * tablet, e nunca é enviado de volta pro servidor. Nome da tabela e das colunas (snake_case)
+ * padronizados com o `rep_core_biometria_facial` do web — os nomes dos campos em Kotlin
+ * continuam em camelCase (convenção normal da linguagem), só o nome da coluna no banco muda.
  */
-@Entity(tableName = "colaborador")
+@Entity(tableName = "rep_core_biometria_facial")
 data class ColaboradorEntity(
-    @PrimaryKey val matricula: String,
+    @ColumnInfo(name = "num_matricula") @PrimaryKey val matricula: String,
     val cpf: String,
     val nome: String,
-    val ativo: Boolean,
-    val atualizadoEm: String,
-    val embeddingFacial: ByteArray? = null
+    @ColumnInfo(name = "fl_ativo") val ativo: Boolean,
+    @ColumnInfo(name = "atualizado_em") val atualizadoEm: String,
+    @ColumnInfo(name = "embedding_tablet") val embeddingFacial: ByteArray? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

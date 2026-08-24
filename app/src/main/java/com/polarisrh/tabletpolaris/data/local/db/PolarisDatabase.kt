@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ColaboradorEntity::class, BatidaPendenteEntity::class, TentativaReconhecimentoEntity::class],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class PolarisDatabase : RoomDatabase() {

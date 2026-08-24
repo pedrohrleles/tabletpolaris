@@ -86,7 +86,7 @@ fun DatabaseViewerScreen(
         ) {
             item {
                 Text(
-                    text = "colaborador (${colaboradores.size})",
+                    text = "rep_core_biometria_facial (${colaboradores.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -158,7 +158,7 @@ fun DatabaseViewerScreen(
 
             item {
                 Text(
-                    text = "tentativa_reconhecimento (${tentativas.size})",
+                    text = "rep_aud_biometria_log (${tentativas.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
