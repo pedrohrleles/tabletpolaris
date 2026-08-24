@@ -69,6 +69,11 @@ private const val INTERVALO_AMOSTRA_RECONHECIMENTO_MS = 350L
  *  isso, com o rosto ainda no enquadramento, ficava tentando e falhando em loop imediato. */
 private const val COOLDOWN_APOS_FALHA_MS = 1800L
 
+/** Tempo pra deixar a barra de progresso (que anima visualmente até o valor novo, ver
+ *  [com.polarisrh.tabletpolaris.ui.screens.facial.FacialCapturePlaceholderScreen]) chegar de
+ *  fato em 100% antes de trocar de tela — bate com a duração da animação da barra lá. */
+private const val DURACAO_ANIMACAO_BARRA_MS = 400L
+
 class FacialCaptureViewModel(
     private val matricula: String,
     private val modo: ModoCaptura,
@@ -210,7 +215,12 @@ class FacialCaptureViewModel(
         }
 
         colaboradorDao.salvarEmbedding(matricula, mediaNormalizada(embeddings).paraByteArray())
-        _uiState.update { it.copy(isScanning = false, scanProgress = 1f, cadastroConcluido = true) }
+        // A barra na tela anima a transição de valor (não pula direto) — sem essa pausa, ela
+        // saía do loop em ~75% e trocava pra tela de sucesso no MESMO instante em que
+        // scanProgress virava 1f, sem tempo de a animação visual sequer começar a subir.
+        _uiState.update { it.copy(scanProgress = 1f) }
+        delay(DURACAO_ANIMACAO_BARRA_MS)
+        _uiState.update { it.copy(isScanning = false, cadastroConcluido = true) }
     }
 
     /**
@@ -278,6 +288,7 @@ class FacialCaptureViewModel(
         val result = punchRepository.registerPunch(matricula)
         result.onSuccess { punchResult ->
             _uiState.update { it.copy(scanProgress = 1f) }
+            delay(DURACAO_ANIMACAO_BARRA_MS)
             onPunchRegistered?.invoke(punchResult)
         }.onFailure { error ->
             _uiState.update { it.copy(isScanning = false, scanProgress = 0f, errorMessage = error.message) }

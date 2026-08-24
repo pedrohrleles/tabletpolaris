@@ -2,6 +2,7 @@ package com.polarisrh.tabletpolaris.ui.screens.facial
 
 import android.graphics.Bitmap
 import android.graphics.Rect as AndroidRect
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -74,7 +75,10 @@ import kotlinx.coroutines.delay
 
 private val FaceGuideSize = Size(width = 380f, height = 520f)
 private val StatusBarIdleColor = PolarisMuted.copy(alpha = 0.25f)
-private const val DELAY_APOS_CADASTRO_MS = 1500L
+// Curto o bastante pra não atrasar o fluxo (depois disso vai automático pro reconhecimento),
+// mas longo o suficiente pra dar tempo do AnimatedCheckmark (spring + traço desenhado, ~1s no
+// total) terminar de brincar antes da tela trocar — 1500ms cortava a animação pela metade.
+private const val DELAY_APOS_CADASTRO_MS = 2500L
 
 /** Fixa a altura do rodapé — sem isso, o Cancelar mudando de altura (habilitado/desabilitado)
  *  empurraria a área da câmera (e o oval) de tamanho. Conteúdo fica centralizado verticalmente
@@ -152,12 +156,20 @@ fun FacialCapturePlaceholderScreen(
         }
     }
 
-    if (uiState.cadastroConcluido) {
-        FacialCadastradaSucesso(nomeColaborador = nomeColaborador, matricula = matricula)
-        return
-    }
+    // Crossfade em vez de um if/return direto — trocar de conteúdo dentro da MESMA tela (não é
+    // uma navegação de rota) não pega a transição padrão que o NavHost já aplica entre telas de
+    // verdade, então sem isso a troca pra "Facial cadastrada com sucesso!" cortava seco.
+    Crossfade(
+        targetState = uiState.cadastroConcluido,
+        animationSpec = tween(durationMillis = 400),
+        label = "facialCaptureContent"
+    ) { cadastroConcluido ->
+        if (cadastroConcluido) {
+            FacialCadastradaSucesso(nomeColaborador = nomeColaborador, matricula = matricula)
+            return@Crossfade
+        }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
         // Header
         Row(
@@ -341,6 +353,7 @@ fun FacialCapturePlaceholderScreen(
                 )
             }
         }
+    }
     }
 }
 
