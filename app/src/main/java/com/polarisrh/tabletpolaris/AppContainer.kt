@@ -6,7 +6,9 @@ import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteDao
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
+import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_1_2
 import com.polarisrh.tabletpolaris.data.local.db.PolarisDatabase
+import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiClient
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
 import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
@@ -48,11 +50,17 @@ class AppContainer(context: Context) {
         context.applicationContext,
         PolarisDatabase::class.java,
         "polaris.db"
-    ).build()
+    )
+        .addMigrations(MIGRATION_1_2)
+        .build()
 
     val colaboradorDao: ColaboradorDao = database.colaboradorDao()
 
     val batidaPendenteDao: BatidaPendenteDao = database.batidaPendenteDao()
+
+    /** Auditoria de tentativas de reconhecimento (espelha rep_aud_biometria_log do web) —
+     *  ajuda a calibrar o limiar com dados reais em vez de chutar. */
+    val tentativaReconhecimentoDao: TentativaReconhecimentoDao = database.tentativaReconhecimentoDao()
 
     /**
      * Único ponto que "desvincula" o tablet: limpa a sessão/credenciais. Não mexe no cache de

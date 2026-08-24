@@ -71,10 +71,10 @@ class RemoteDeviceAuthRepository(
                 }
 
                 // Decide, antes de salvar a sessão nova, se o cache local de colaboradores
-                // (embeddings inclusive) deve ser preservado (mesmo estabelecimento de antes)
-                // ou zerado (estabelecimento diferente). Usa local.id (sempre presente) em vez
-                // de idEstabelecimento (nullable) pra essa comparação.
-                colaboradorSyncRepository.prepararParaAtivacao(body.local.id)
+                // (embeddings inclusive) deve ser preservado (mesma empresa de antes) ou
+                // zerado (empresa diferente) — roster agora é por empresa inteira, não mais
+                // por estabelecimento.
+                colaboradorSyncRepository.prepararParaAtivacao(body.idEmpregador)
 
                 credentialsStore.save(
                     DeviceCredentials(
@@ -91,7 +91,19 @@ class RemoteDeviceAuthRepository(
                 // isso o tablet ficaria reportando dados desatualizados até lá.
                 val workManager = WorkManager.getInstance(context)
                 workManager.enqueue(OneTimeWorkRequestBuilder<HeartbeatWorker>().build())
-                // Puxa o roster de colaboradores assim que o tablet fica vinculado a uma empresa.
+
+                // Espera a carga completa do roster terminar ANTES de liberar a ativação — só
+                // agendar o worker e seguir em frente deixava a tela de ponto acessível com o
+                // banco local ainda vazio/parcial, então as primeiras tentativas de bater ponto
+                // (principalmente de colaboradores de outro local de trabalho, cuja matrícula só
+                // existe aqui depois desse sync) "não reconheciam" a matrícula até o worker
+                // rodar por conta própria em segundo plano. Falha aqui não derruba a ativação —
+                // o worker abaixo serve de retry (inclusive com backoff em caso de IOException).
+                try {
+                    colaboradorSyncRepository.sincronizarTudo()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Sync inicial de colaboradores falhou, worker vai tentar de novo: ${e.message}")
+                }
                 workManager.enqueue(OneTimeWorkRequestBuilder<ColaboradorSyncWorker>().build())
                 Result.success(Unit)
             } else {

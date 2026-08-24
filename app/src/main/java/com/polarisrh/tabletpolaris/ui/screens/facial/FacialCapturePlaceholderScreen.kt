@@ -1,6 +1,7 @@
 package com.polarisrh.tabletpolaris.ui.screens.facial
 
 import android.graphics.Bitmap
+import android.graphics.Rect as AndroidRect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,12 +9,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
@@ -38,13 +39,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
+import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
@@ -66,12 +72,20 @@ private val FaceGuideSize = Size(width = 380f, height = 520f)
 private val StatusBarIdleColor = PolarisMuted.copy(alpha = 0.25f)
 private const val DELAY_APOS_CADASTRO_MS = 1500L
 
+/** Fixa a altura do rodapé — sem isso, o Cancelar mudando de altura (habilitado/desabilitado)
+ *  empurraria a área da câmera (e o oval) de tamanho. Conteúdo fica centralizado verticalmente
+ *  dentro desse espaço fixo. Só o botão Cancelar mora aqui — status e erro agora aparecem
+ *  embaixo do oval, na própria câmera. */
+private val FooterHeight = 96.dp
+
 @Composable
 fun FacialCapturePlaceholderScreen(
     matricula: String,
     modo: ModoCaptura,
     punchRepository: PunchRepository,
     colaboradorDao: ColaboradorDao,
+    tentativaReconhecimentoDao: TentativaReconhecimentoDao,
+    credentialsStore: DeviceCredentialsStore,
     faceEmbeddingExtractor: FaceEmbeddingExtractor,
     deviceStatusChecker: DeviceStatusChecker,
     networkMonitor: NetworkMonitor,
@@ -83,9 +97,12 @@ fun FacialCapturePlaceholderScreen(
         factory = viewModelFactory {
             initializer {
                 FacialCaptureViewModel(
+                    matricula,
                     modo,
                     punchRepository,
                     colaboradorDao,
+                    tentativaReconhecimentoDao,
+                    credentialsStore,
                     faceEmbeddingExtractor,
                     deviceStatusChecker,
                     networkMonitor
@@ -96,20 +113,25 @@ fun FacialCapturePlaceholderScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isCadastro = modo == ModoCaptura.CADASTRO
     var showMenuDebug by remember { mutableStateOf(false) }
-    var capturarFrame by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
+    var capturarFrameBruto by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
+    var boxSizePx by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+    val guideWidthPx = with(density) { FaceGuideSize.width.dp.toPx() }
+    val guideHeightPx = with(density) { FaceGuideSize.height.dp.toPx() }
 
-    // Sem botão manual: assim que o enquadramento fica "pronto", dispara sozinho.
-    LaunchedEffect(uiState.faceDetectionStatus, uiState.isScanning, uiState.cadastroConcluido) {
-        if (uiState.faceDetectionStatus == FaceDetectionStatus.Pronto &&
-            !uiState.isScanning &&
-            !uiState.cadastroConcluido
-        ) {
-            viewModel.startScan(
-                matricula = matricula,
-                capturarFrame = { capturarFrame?.invoke() },
-                onSuccess = onPunchRegistered
-            )
-        }
+    // Sem botão manual: a lógica de quando disparar (borda de subida, cooldown pós-falha,
+    // hold de 3s no cadastro) vive inteira no ViewModel — aqui só conecta a captura de frame
+    // e o cálculo do retângulo do oval, pra checagem de enquadramento rodar na mesma imagem
+    // exibida (nunca mais um stream de análise separado, com campo de visão diferente). O
+    // recorte usado pro embedding em si também é feito pelo ViewModel, ao redor do rosto
+    // DETECTADO em cada amostra — não da área fixa do oval — pra similaridade não variar
+    // conforme a distância da câmera entre cadastro e reconhecimento.
+    LaunchedEffect(Unit) {
+        viewModel.iniciar(
+            capturarFrameBruto = { capturarFrameBruto?.invoke() },
+            calcularOvalRect = { bitmap -> calcularOvalRect(bitmap, boxSizePx, guideWidthPx, guideHeightPx) },
+            onPunchRegistered = onPunchRegistered
+        )
     }
 
     // Cadastro e reconhecimento são fluxos separados: ao cadastrar, mostra a confirmação e
@@ -161,7 +183,7 @@ fun FacialCapturePlaceholderScreen(
                 confirmButton = {
                     TextButton(onClick = {
                         showMenuDebug = false
-                        viewModel.removerFacial(matricula, aoRemover = onCancel)
+                        viewModel.removerFacial(aoRemover = onCancel)
                     }) {
                         Text("Sim")
                     }
@@ -198,11 +220,11 @@ fun FacialCapturePlaceholderScreen(
                 .fillMaxWidth()
                 .clipToBounds()
                 .background(PolarisCameraPlaceholder)
+                .onSizeChanged { boxSizePx = it }
         ) {
             FrontCameraPreview(
                 modifier = Modifier.fillMaxSize(),
-                onFaceDetectionStatus = viewModel::atualizarStatusDeteccao,
-                onCapturaDisponivel = { capturarFrame = it }
+                onCapturaDisponivel = { capturarFrameBruto = it }
             )
 
             // Spotlight: dim everything outside the guide, punch a clear hole where the
@@ -239,44 +261,50 @@ fun FacialCapturePlaceholderScreen(
                     style = Stroke(width = 5.dp.toPx())
                 )
             }
+
+            // Status logo abaixo do oval, sobre a área já escurecida da câmera — mais fácil de
+            // ler olhando pra câmera durante o cadastro/reconhecimento do que uma mensagem lá
+            // embaixo, longe do rosto na tela. A mensagem de erro (ex.: "Rosto não
+            // reconhecido") entra aqui também, com prioridade abaixo das mensagens de
+            // enquadramento — assim, se o rosto sair de posição, a dica de enquadramento (mais
+            // acionável no momento) toma a frente; se continuar bem enquadrado (é o que
+            // acontece durante o cooldown pós-falha, antes da nova tentativa automática), mostra
+            // o erro em vez do "Rosto posicionado corretamente" genérico.
+            val (statusMessage, statusColor) = when {
+                uiState.cadastroConcluido -> "Facial cadastrada com sucesso!" to PolarisSuccess
+                uiState.isScanning && isCadastro -> "Mantenha o rosto parado..." to PolarisSuccess
+                uiState.isScanning -> "Verificando rosto..." to PolarisSuccess
+                uiState.faceDetectionStatus == FaceDetectionStatus.SemRosto -> "Nenhum rosto detectado" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> "Mais de um rosto detectado" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoDistante -> "Aproxime-se da câmera" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoPerto -> "Afaste-se um pouco da câmera" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.ForaDoCentro -> "Centralize o rosto na área indicada" to PolarisOnPrimary
+                uiState.errorMessage != null -> uiState.errorMessage to MaterialTheme.colorScheme.error
+                else -> "Rosto posicionado corretamente" to PolarisSuccess
+            }
+            Text(
+                text = statusMessage.orEmpty(),
+                style = MaterialTheme.typography.titleMedium,
+                color = statusColor,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = (FaceGuideSize.height / 2f).dp + 48.dp)
+                    .fillMaxWidth(0.85f)
+            )
         }
 
         // Footer
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(FooterHeight)
                 .background(PolarisSurfaceDark)
                 .navigationBarsPadding()
-                .padding(48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = when {
-                    uiState.cadastroConcluido -> "Facial cadastrada com sucesso!"
-                    uiState.isScanning && isCadastro -> "Cadastrando, aguarde..."
-                    uiState.isScanning -> "Identificando, aguarde..."
-                    uiState.faceDetectionStatus == FaceDetectionStatus.SemRosto -> "Nenhum rosto detectado"
-                    uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> "Mais de um rosto detectado"
-                    uiState.faceDetectionStatus == FaceDetectionStatus.RostoDistante -> "Aproxime-se da câmera"
-                    uiState.faceDetectionStatus == FaceDetectionStatus.ForaDoCentro -> "Centralize o rosto na área indicada"
-                    else -> "Rosto posicionado corretamente"
-                },
-                style = MaterialTheme.typography.titleMedium,
-                color = if (uiState.cadastroConcluido) PolarisSuccess else PolarisOnPrimary,
-                textAlign = TextAlign.Center
-            )
-
-            uiState.errorMessage?.let { message ->
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
             TextButton(onClick = onCancel, enabled = !uiState.isScanning && !uiState.cadastroConcluido) {
                 Text(
                     "Cancelar",
@@ -295,4 +323,23 @@ private fun scanColorFor(progress: Float): Color {
     } else {
         lerp(PolarisWarning, PolarisSuccess, (clamped - 0.5f) / 0.5f)
     }
+}
+
+/**
+ * Calcula, pra um bitmap dado, o retângulo ocupado pelo oval-guia nesse MESMO bitmap — mesma
+ * proporção usada pra desenhar o guia na tela, escalada caso o bitmap capturado não tenha
+ * exatamente o mesmo tamanho em pixels do Box (ex.: PreviewView.bitmap pode diferir um pouco).
+ * Usado tanto pra recortar o rosto pro embedding quanto pra checar o enquadramento — sempre a
+ * mesma imagem, nunca um stream separado da câmera com campo de visão diferente.
+ */
+private fun calcularOvalRect(bitmap: Bitmap, boxSizePx: IntSize, guideWidthPx: Float, guideHeightPx: Float): AndroidRect {
+    val escalaX = bitmap.width.toFloat() / boxSizePx.width
+    val escalaY = bitmap.height.toFloat() / boxSizePx.height
+
+    val largura = (guideWidthPx * escalaX).toInt().coerceIn(1, bitmap.width)
+    val altura = (guideHeightPx * escalaY).toInt().coerceIn(1, bitmap.height)
+    val x = ((bitmap.width - largura) / 2).coerceIn(0, bitmap.width - largura)
+    val y = ((bitmap.height - altura) / 2).coerceIn(0, bitmap.height - altura)
+
+    return AndroidRect(x, y, x + largura, y + altura)
 }

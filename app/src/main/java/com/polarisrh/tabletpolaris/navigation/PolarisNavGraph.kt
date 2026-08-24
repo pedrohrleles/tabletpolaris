@@ -122,6 +122,7 @@ fun PolarisNavGraph(
                 DatabaseViewerScreen(
                     colaboradorDao = container.colaboradorDao,
                     batidaPendenteDao = container.batidaPendenteDao,
+                    tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -151,6 +152,8 @@ fun PolarisNavGraph(
                     modo = ModoCaptura.RECONHECIMENTO,
                     punchRepository = container.punchRepository,
                     colaboradorDao = container.colaboradorDao,
+                    tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
+                    credentialsStore = container.credentialsStore,
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
@@ -178,6 +181,8 @@ fun PolarisNavGraph(
                     modo = ModoCaptura.CADASTRO,
                     punchRepository = container.punchRepository,
                     colaboradorDao = container.colaboradorDao,
+                    tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
+                    credentialsStore = container.credentialsStore,
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
