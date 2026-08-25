@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.polarisrh.tabletpolaris.audio.PolarisAudioPlayer
 import com.polarisrh.tabletpolaris.ui.components.AnimatedCheckmark
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
@@ -28,9 +29,11 @@ private val TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' 
 fun PunchSuccessScreen(
     matricula: String,
     timestampMillis: Long,
+    audioPlayer: PolarisAudioPlayer,
     onTimeout: () -> Unit
 ) {
     LaunchedEffect(matricula) {
+        audioPlayer.tocarPontoRegistrado()
         delay(AUTO_RETURN_DELAY_MS)
         onTimeout()
     }

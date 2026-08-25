@@ -135,3 +135,74 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("ALTER TABLE `rep_aud_biometria_log_new` RENAME TO `rep_aud_biometria_log`")
     }
 }
+
+/** `batida_pendente` reestruturada em `batidas_sincronizadas` — deixa de ser só a fila offline
+ *  (que exigia apagar a linha depois de sincronizar) e passa a guardar o histórico completo de
+ *  TODAS as batidas do tablet; "fila offline" agora é só o filtro `fl_sincronizado = 0` sobre
+ *  essa mesma tabela (padrão outbox). Também adiciona as colunas de identificação vindas do
+ *  backend (id_empregador, id_vinculo, id_empregado, nr_cpf_empregado — ainda sem fonte de
+ *  dado definida, ficam nulas por enquanto) e as de rastreio de tentativa de sincronização. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `id_vinculo` TEXT,
+                `id_empregado` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `fl_sincronizado` INTEGER NOT NULL DEFAULT 0,
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, num_matricula, dt_hr_marcacao, fl_sincronizado, qtd_tentativas_sincronizacao)
+            SELECT id, matricula, dtHora, 0, 0 FROM `batida_pendente`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batida_pendente`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}
+
+/** Remove `id_vinculo` e `id_empregado` de `batidas_sincronizadas` — decidido que não serão
+ *  usados. `nr_cpf_empregado` fica (já temos essa informação disponível localmente). */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `fl_sincronizado` INTEGER NOT NULL DEFAULT 0,
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao)
+            SELECT id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao
+            FROM `batidas_sincronizadas`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batidas_sincronizadas`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}

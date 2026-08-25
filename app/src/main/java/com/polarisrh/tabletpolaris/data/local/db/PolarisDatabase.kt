@@ -4,12 +4,12 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [ColaboradorEntity::class, BatidaPendenteEntity::class, TentativaReconhecimentoEntity::class],
-    version = 4,
+    entities = [ColaboradorEntity::class, BatidaEntity::class, TentativaReconhecimentoEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class PolarisDatabase : RoomDatabase() {
     abstract fun colaboradorDao(): ColaboradorDao
-    abstract fun batidaPendenteDao(): BatidaPendenteDao
+    abstract fun batidaDao(): BatidaDao
     abstract fun tentativaReconhecimentoDao(): TentativaReconhecimentoDao
 }

@@ -121,7 +121,7 @@ fun PolarisNavGraph(
             composable(PolarisDestinations.DATABASE_VIEWER) {
                 DatabaseViewerScreen(
                     colaboradorDao = container.colaboradorDao,
-                    batidaPendenteDao = container.batidaPendenteDao,
+                    batidaDao = container.batidaDao,
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     onBack = { navController.popBackStack() }
                 )
@@ -157,6 +157,7 @@ fun PolarisNavGraph(
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
+                    audioPlayer = container.audioPlayer,
                     onPunchRegistered = { punchResult ->
                         val timestampMillis = punchResult.timestamp
                             .atZone(ZoneId.systemDefault())
@@ -186,6 +187,7 @@ fun PolarisNavGraph(
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
+                    audioPlayer = container.audioPlayer,
                     // Cadastro nunca bate ponto — só gera e salva o embedding.
                     onPunchRegistered = {},
                     onCadastroConcluido = {
@@ -211,6 +213,7 @@ fun PolarisNavGraph(
                 PunchSuccessScreen(
                     matricula = matricula,
                     timestampMillis = timestampMillis,
+                    audioPlayer = container.audioPlayer,
                     onTimeout = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }

@@ -1,5 +1,6 @@
 package com.polarisrh.tabletpolaris.ui.components
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -37,19 +39,31 @@ fun NumericKeypad(
                 row.forEach { key ->
                     when (key) {
                         "" -> Spacer(modifier = Modifier.size(KeySize))
-                        "⌫" -> OutlinedButton(
-                            onClick = onBackspace,
-                            contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(KeySize)
-                        ) {
-                            Text(text = key, style = MaterialTheme.typography.headlineSmall)
+                        "⌫" -> {
+                            val interactionSource = remember { MutableInteractionSource() }
+                            OutlinedButton(
+                                onClick = onBackspace,
+                                interactionSource = interactionSource,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier
+                                    .size(KeySize)
+                                    .pressScale(interactionSource)
+                            ) {
+                                Text(text = key, style = MaterialTheme.typography.headlineSmall)
+                            }
                         }
-                        else -> OutlinedButton(
-                            onClick = { onDigit(key) },
-                            contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(KeySize)
-                        ) {
-                            Text(text = key, style = MaterialTheme.typography.headlineMedium)
+                        else -> {
+                            val interactionSource = remember { MutableInteractionSource() }
+                            OutlinedButton(
+                                onClick = { onDigit(key) },
+                                interactionSource = interactionSource,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier
+                                    .size(KeySize)
+                                    .pressScale(interactionSource)
+                            ) {
+                                Text(text = key, style = MaterialTheme.typography.headlineMedium)
+                            }
                         }
                     }
                 }

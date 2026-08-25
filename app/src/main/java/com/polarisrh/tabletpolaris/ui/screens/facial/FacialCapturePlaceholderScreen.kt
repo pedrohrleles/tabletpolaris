@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.polarisrh.tabletpolaris.audio.PolarisAudioPlayer
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
@@ -97,6 +98,7 @@ fun FacialCapturePlaceholderScreen(
     faceEmbeddingExtractor: FaceEmbeddingExtractor,
     deviceStatusChecker: DeviceStatusChecker,
     networkMonitor: NetworkMonitor,
+    audioPlayer: PolarisAudioPlayer,
     onPunchRegistered: (PunchResult) -> Unit,
     onCadastroConcluido: () -> Unit,
     onCancel: () -> Unit
@@ -151,6 +153,7 @@ fun FacialCapturePlaceholderScreen(
     // manda pra tela de reconhecimento — a batida em si só acontece por lá.
     LaunchedEffect(uiState.cadastroConcluido) {
         if (uiState.cadastroConcluido) {
+            audioPlayer.tocarFacialCadastrada()
             delay(DELAY_APOS_CADASTRO_MS)
             onCadastroConcluido()
         }
