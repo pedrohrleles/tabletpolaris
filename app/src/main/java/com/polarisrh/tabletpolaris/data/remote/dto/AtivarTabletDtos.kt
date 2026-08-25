@@ -14,7 +14,9 @@ data class AtivarTabletRequest(
     @SerialName("dt_dispositivo") val dtDispositivo: String,
     @SerialName("nr_bateria_pct") val nrBateriaPct: Int,
     @SerialName("fl_carregando") val flCarregando: Boolean,
-    @SerialName("nr_fila_pendente") val nrFilaPendente: Int
+    @SerialName("nr_fila_pendente") val nrFilaPendente: Int,
+    @SerialName("armazenamento") val armazenamento: String,
+    @SerialName("mem_ram") val memRam: String
 )
 
 @Serializable

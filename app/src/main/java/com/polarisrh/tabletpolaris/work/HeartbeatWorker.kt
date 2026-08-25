@@ -35,6 +35,8 @@ class HeartbeatWorker(
             nrFilaPendente = container.batidaDao.contarPendentes(),
             nrBateriaPct = telemetry.batteryPercent,
             flCarregando = telemetry.isCharging,
+            armazenamento = telemetry.armazenamento,
+            memRam = telemetry.memoriaRam,
             dsVersaoApp = BuildConfig.VERSION_NAME,
             dsAndroidId = DeviceIdentity.androidId(applicationContext),
             // Mesma limitação de plataforma da ativação — ver DeviceIdentity/nota na ativação.

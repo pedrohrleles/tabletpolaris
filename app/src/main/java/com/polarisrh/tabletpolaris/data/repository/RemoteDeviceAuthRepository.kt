@@ -56,7 +56,9 @@ class RemoteDeviceAuthRepository(
                 dtDispositivo = Instant.now().toString(),
                 nrBateriaPct = telemetry.batteryPercent,
                 flCarregando = telemetry.isCharging,
-                nrFilaPendente = batidaDao.contarPendentes()
+                nrFilaPendente = batidaDao.contarPendentes(),
+                armazenamento = telemetry.armazenamento,
+                memRam = telemetry.memoriaRam
             )
 
             val response = api.ativarTablet(request)
