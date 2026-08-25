@@ -10,6 +10,7 @@ import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
+import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 
 /**
@@ -25,6 +26,26 @@ class DeviceKeyManager {
         ensureKeyExists()
         val certificate = keyStore().getCertificate(KEY_ALIAS)
         return Base64.encodeToString(certificate.publicKey.encoded, Base64.NO_WRAP)
+    }
+
+    /**
+     * Assina [payload] com a chave privada do dispositivo (nunca sai do Keystore) usando
+     * SHA256withECDSA — mesmo algoritmo que o backend usa pra verificar contra a chave pública
+     * pareada na ativação. Devolve a assinatura DER, em base64 (sem quebra de linha).
+     *
+     * Formato esperado do payload pra assinar uma marcação (confirmado com o backend):
+     * `{id_coletor}|{id_local}|{nr_matricula}|{dt_hr_marcacao}` — quatro valores, join com "|",
+     * sem espaços, sem terminador. Montar essa string é responsabilidade de quem chama; aqui só
+     * assina o que for passado.
+     */
+    fun assinar(payload: String): String {
+        ensureKeyExists()
+        val privateKey = keyStore().getKey(KEY_ALIAS, null) as PrivateKey
+        val signature = Signature.getInstance("SHA256withECDSA").apply {
+            initSign(privateKey)
+            update(payload.toByteArray(Charsets.UTF_8))
+        }
+        return Base64.encodeToString(signature.sign(), Base64.NO_WRAP)
     }
 
     fun isStrongBoxBacked(): Boolean {

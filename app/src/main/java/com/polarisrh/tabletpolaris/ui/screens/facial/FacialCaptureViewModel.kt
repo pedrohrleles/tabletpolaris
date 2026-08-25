@@ -285,7 +285,7 @@ class FacialCaptureViewModel(
         }
         _uiState.update { it.copy(scanProgress = 0.97f) }
 
-        val result = punchRepository.registerPunch(matricula)
+        val result = punchRepository.registerPunch(matricula, similaridade, LIMIAR_RECONHECIMENTO_FACIAL)
         result.onSuccess { punchResult ->
             _uiState.update { it.copy(scanProgress = 1f) }
             delay(DURACAO_ANIMACAO_BARRA_MS)

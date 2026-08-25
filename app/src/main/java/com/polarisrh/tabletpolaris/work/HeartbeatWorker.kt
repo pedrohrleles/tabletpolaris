@@ -32,8 +32,7 @@ class HeartbeatWorker(
 
         val telemetry = DeviceTelemetryCollector(applicationContext).collect()
         val request = HeartbeatRequest(
-            // TODO: ligar à fila de sincronização real quando ela existir.
-            nrFilaPendente = 0,
+            nrFilaPendente = container.batidaDao.contarPendentes(),
             nrBateriaPct = telemetry.batteryPercent,
             flCarregando = telemetry.isCharging,
             dsVersaoApp = BuildConfig.VERSION_NAME,

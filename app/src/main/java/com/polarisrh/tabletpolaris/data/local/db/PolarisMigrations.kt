@@ -206,3 +206,89 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
     }
 }
+
+/** Adiciona as colunas que o contrato real de POST rep-p/dispositivos/marcacoes exige por
+ *  marcação: `id_local` (UUID de idempotência), `assinatura` (ECDSA sobre
+ *  id_coletor|id_local|num_matricula|dt_hr_marcacao) e a métrica de auditoria (`nr_score`/
+ *  `nr_threshold`). A tabela nunca teve uma implementação real de escrita até agora (só o
+ *  `FakePunchRepository`), então não existem linhas de verdade para migrar — os defaults abaixo
+ *  são só para satisfazer o NOT NULL do SQLite. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `id_local` TEXT NOT NULL DEFAULT '',
+                `assinatura` TEXT NOT NULL DEFAULT '',
+                `nr_score` REAL NOT NULL DEFAULT 0,
+                `nr_threshold` REAL NOT NULL DEFAULT 0,
+                `fl_sincronizado` INTEGER NOT NULL DEFAULT 0,
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao)
+            SELECT id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao
+            FROM `batidas_sincronizadas`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batidas_sincronizadas`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}
+
+/** Troca `fl_sincronizado` (booleano) por `status_sincronizacao` (PENDENTE/SINCRONIZADA/
+ *  REJEITADA) — o backend confirmou que o 201 do lote não significa "tudo aceito": cada
+ *  marcação é processada isoladamente e pode vir rejeitada em definitivo (matrícula desligada,
+ *  sem escala vigente, assinatura inválida). Um booleano não tem como distinguir "ainda
+ *  pendente" de "rejeitada pra sempre" sem continuar reaparecendo em listarPendentes(). */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `id_local` TEXT NOT NULL DEFAULT '',
+                `assinatura` TEXT NOT NULL DEFAULT '',
+                `nr_score` REAL NOT NULL DEFAULT 0,
+                `nr_threshold` REAL NOT NULL DEFAULT 0,
+                `status_sincronizacao` TEXT NOT NULL DEFAULT 'PENDENTE',
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 id_local, assinatura, nr_score, nr_threshold, status_sincronizacao,
+                 qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao)
+            SELECT id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 id_local, assinatura, nr_score, nr_threshold,
+                 CASE WHEN fl_sincronizado = 1 THEN 'SINCRONIZADA' ELSE 'PENDENTE' END,
+                 qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao
+            FROM `batidas_sincronizadas`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batidas_sincronizadas`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}

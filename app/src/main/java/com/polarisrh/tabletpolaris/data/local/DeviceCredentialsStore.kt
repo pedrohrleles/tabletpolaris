@@ -104,6 +104,16 @@ class DeviceCredentialsStore(context: Context) {
             .apply()
     }
 
+    /** Último nr_sequencia_lote efetivamente usado num envio de marcações — persistido pra
+     *  garantir que o próximo valor seja sempre maior mesmo se o relógio do tablet regredir
+     *  (correção NTP, troca de fuso, RTC descarregado). Sem isso, "gerar outro timestamp" no
+     *  409 pode nunca produzir um valor maior que o último aceito, travando a sincronização. */
+    fun ultimaSequenciaLote(): Long? = prefs.getLong(KEY_ULTIMA_SEQUENCIA_LOTE, -1L).takeIf { it >= 0L }
+
+    fun salvarUltimaSequenciaLote(valor: Long) {
+        prefs.edit().putLong(KEY_ULTIMA_SEQUENCIA_LOTE, valor).apply()
+    }
+
     private companion object {
         const val PREFS_FILE_NAME = "device_credentials"
         const val KEY_TOKEN = "token"
@@ -115,5 +125,6 @@ class DeviceCredentialsStore(context: Context) {
         const val KEY_TIMEZONE = "timezone"
         const val KEY_ULTIMA_SYNC_COLABORADORES = "ultima_sincronizacao_colaboradores"
         const val KEY_ID_EMPREGADOR_COLABORADORES_CACHE = "id_empregador_colaboradores_cache"
+        const val KEY_ULTIMA_SEQUENCIA_LOTE = "ultima_sequencia_lote"
     }
 }

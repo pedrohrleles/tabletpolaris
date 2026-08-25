@@ -29,6 +29,7 @@ import com.polarisrh.tabletpolaris.data.local.db.BatidaDao
 import com.polarisrh.tabletpolaris.data.local.db.BatidaEntity
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorEntity
+import com.polarisrh.tabletpolaris.data.local.db.StatusSincronizacao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoEntity
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
@@ -135,12 +136,16 @@ fun DatabaseViewerScreen(
                 TabelaLinha {
                     Text(
                         text = "#${batida.id} — ${batida.matricula}",
-                        color = if (batida.sincronizado) PolarisSuccess else PolarisError,
+                        color = when (batida.statusSincronizacao) {
+                            StatusSincronizacao.SINCRONIZADA -> PolarisSuccess
+                            StatusSincronizacao.REJEITADA -> PolarisError
+                            else -> PolarisMuted
+                        },
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
-                        text = "sincronizado: ${batida.sincronizado} · tentativas: ${batida.qtdTentativasSincronizacao}" +
+                        text = "status: ${batida.statusSincronizacao} · tentativas: ${batida.qtdTentativasSincronizacao}" +
                             (batida.mensagemErroSincronizacao?.let { " · $it" } ?: ""),
                         color = PolarisMuted,
                         style = MaterialTheme.typography.bodySmall

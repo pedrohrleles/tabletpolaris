@@ -7,6 +7,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.polarisrh.tabletpolaris.work.HeartbeatWorker
+import com.polarisrh.tabletpolaris.work.PunchSyncWorker
 import java.util.concurrent.TimeUnit
 
 class PolarisApplication : Application() {
@@ -18,6 +19,7 @@ class PolarisApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         scheduleHeartbeat()
+        schedulePunchSync()
     }
 
     /**
@@ -36,6 +38,27 @@ class PolarisApplication : Application() {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             HEARTBEAT_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    /**
+     * Rede de segurança pra fila offline de batidas — o caminho comum é a sincronização
+     * imediata disparada logo após cada ponto (ver RoomPunchRepository), mas isso cobre o caso
+     * de a rede voltar sem nenhuma batida nova acontecer nesse meio-tempo.
+     */
+    private fun schedulePunchSync() {
+        val request = PeriodicWorkRequestBuilder<PunchSyncWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            PunchSyncWorker.PERIODIC_WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
