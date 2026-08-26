@@ -292,3 +292,35 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
     }
 }
+
+/** Adiciona dt_reset_facial_aplicado em rep_core_biometria_facial — reset remoto de facial
+ *  pedido pelo painel web (ADD COLUMN simples, sem precisar da técnica de recriar tabela, já
+ *  que só estamos adicionando uma coluna anulável). */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_reset_facial_aplicado` TEXT")
+    }
+}
+
+/** Adiciona dt_remocao_confirmada em rep_core_biometria_facial — null enquanto a remoção local
+ *  de uma facial (por dt_reset_facial) ainda não foi confirmada pro backend via POST
+ *  facial-removida. Sem essa coluna, uma confirmação que falhasse (rede caiu) se perderia pra
+ *  sempre — o colaborador nunca veria "Facial Removida" no painel, mesmo com a facial já
+ *  apagada de verdade no tablet. */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_remocao_confirmada` TEXT")
+    }
+}
+
+/** Adiciona dt_cadastro_facial e dt_cadastro_confirmado em rep_core_biometria_facial — o
+ *  backend confirmou o contrato completo do ciclo de facial: um dt_reset_facial só é aplicado
+ *  se for posterior a dt_cadastro_facial (a data do cadastro local atual), e o cadastro em si
+ *  precisa ser avisado via POST facial-cadastrada pra o colaborador ver "Facial Cadastrada" no
+ *  painel web. */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_cadastro_facial` TEXT")
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_cadastro_confirmado` TEXT")
+    }
+}

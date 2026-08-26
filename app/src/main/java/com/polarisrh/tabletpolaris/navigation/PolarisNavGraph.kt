@@ -98,6 +98,7 @@ fun PolarisNavGraph(
             composable(PolarisDestinations.CLOCK_IN) {
                 ClockInScreen(
                     deviceStatusChecker = container.deviceStatusChecker,
+                    colaboradorSyncRepository = container.colaboradorSyncRepository,
                     networkMonitor = container.networkMonitor,
                     colaboradorDao = container.colaboradorDao,
                     onReconhecerFacial = { matricula ->

@@ -43,4 +43,29 @@ interface ColaboradorDao {
     /** Usado no sync incremental quando um colaborador vem com fl_ativo=false (desligamento). */
     @Query("DELETE FROM rep_core_biometria_facial WHERE num_matricula = :matricula")
     suspend fun removerPorMatricula(matricula: String)
+
+    /** Remoções de facial já aplicadas localmente (embedding apagado) mas ainda não
+     *  confirmadas pro Polaris RH — inclui tanto as recém-detectadas nesta sincronização
+     *  quanto sobras de tentativas de confirmação que falharam antes. Usa dt_cadastro_facial
+     *  NULL (sem cadastro ativo) como sinal de que houve uma remoção pendente de aviso. */
+    @Query("SELECT * FROM rep_core_biometria_facial WHERE dt_cadastro_facial IS NULL AND dt_remocao_confirmada IS NULL AND dt_reset_facial_aplicado IS NOT NULL")
+    suspend fun listarComRemocaoPendenteDeConfirmacao(): List<ColaboradorEntity>
+
+    @Query("UPDATE rep_core_biometria_facial SET dt_remocao_confirmada = :dtConfirmacao WHERE num_matricula = :matricula")
+    suspend fun marcarRemocaoConfirmada(matricula: String, dtConfirmacao: String)
+
+    /** Chamado assim que um cadastro facial novo é salvo localmente (Cadastrar Facial) — marca
+     *  a confirmação pro Polaris RH como pendente de novo, mesmo que já tivesse sido confirmada
+     *  antes (um recadastro é um evento novo). */
+    @Query("UPDATE rep_core_biometria_facial SET dt_cadastro_facial = :dtCadastro, dt_cadastro_confirmado = NULL WHERE num_matricula = :matricula")
+    suspend fun marcarCadastroFacial(matricula: String, dtCadastro: String)
+
+    /** Cadastros feitos localmente mas ainda não confirmados pro Polaris RH (POST
+     *  facial-cadastrada) — sem isso, o painel web mostra "Cadastre no Tablet" pra quem já
+     *  cadastrou, e nunca oferece o botão de remover. */
+    @Query("SELECT * FROM rep_core_biometria_facial WHERE dt_cadastro_facial IS NOT NULL AND dt_cadastro_confirmado IS NULL")
+    suspend fun listarComCadastroPendenteDeConfirmacao(): List<ColaboradorEntity>
+
+    @Query("UPDATE rep_core_biometria_facial SET dt_cadastro_confirmado = :dtConfirmacao WHERE num_matricula = :matricula")
+    suspend fun marcarCadastroConfirmado(matricula: String, dtConfirmacao: String)
 }

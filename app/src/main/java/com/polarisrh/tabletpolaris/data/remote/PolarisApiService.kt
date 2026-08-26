@@ -3,6 +3,9 @@ package com.polarisrh.tabletpolaris.data.remote
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.ColaboradoresSyncResponse
+import com.polarisrh.tabletpolaris.data.remote.dto.FacialCadastradaRequest
+import com.polarisrh.tabletpolaris.data.remote.dto.FacialNotificacaoResponse
+import com.polarisrh.tabletpolaris.data.remote.dto.FacialRemovidaRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.HeartbeatRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.HeartbeatResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncRequest
@@ -54,4 +57,22 @@ interface PolarisApiService {
         @Header("Authorization") bearerToken: String,
         @Body request: MarcacoesSyncRequest
     ): Response<MarcacoesSyncResponse>
+
+    // Avisa que uma facial foi cadastrada localmente — é o que faz o colaborador ver "Facial
+    // Cadastrada" (com botão de remover) no painel web em vez de "Cadastre no Tablet".
+    @POST("coletores/{idColetor}/facial-cadastrada")
+    suspend fun confirmarFacialCadastrada(
+        @Path("idColetor") idColetor: String,
+        @Header("Authorization") bearerToken: String,
+        @Body request: FacialCadastradaRequest
+    ): Response<FacialNotificacaoResponse>
+
+    // Confirma que a facial foi de fato apagada localmente (a partir de um dt_reset_facial) —
+    // é o que faz o colaborador ver "Facial Removida" no painel web.
+    @POST("coletores/{idColetor}/facial-removida")
+    suspend fun confirmarFacialRemovida(
+        @Path("idColetor") idColetor: String,
+        @Header("Authorization") bearerToken: String,
+        @Body request: FacialRemovidaRequest
+    ): Response<FacialNotificacaoResponse>
 }

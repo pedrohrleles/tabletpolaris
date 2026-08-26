@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
+import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.ui.components.NumericKeypad
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
@@ -65,6 +66,7 @@ private const val MATRICULA_PREFIX = "MAT-"
 @Composable
 fun ClockInScreen(
     deviceStatusChecker: DeviceStatusChecker,
+    colaboradorSyncRepository: ColaboradorSyncRepository,
     networkMonitor: NetworkMonitor,
     colaboradorDao: ColaboradorDao,
     onReconhecerFacial: (String) -> Unit,
@@ -74,7 +76,7 @@ fun ClockInScreen(
 ) {
     val viewModel: ClockInViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { ClockInViewModel(deviceStatusChecker, networkMonitor, colaboradorDao) }
+            initializer { ClockInViewModel(deviceStatusChecker, colaboradorSyncRepository, networkMonitor, colaboradorDao) }
         }
     )
     val uiState by viewModel.uiState.collectAsState()

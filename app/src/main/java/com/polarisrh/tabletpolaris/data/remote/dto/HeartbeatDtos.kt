@@ -28,8 +28,15 @@ data class HeartbeatRequest(
  *
  * Default = true: se o backend não mandar esse campo (ainda), o app assume que continua
  * ativo em vez de travar o tablet por engano ou quebrar ao tentar ler a resposta.
+ *
+ * dt_cadastro_alterado é o mesmo campo que já existe em StatusResponse — mesma semântica,
+ * mesmo gatilho de sincronização incremental de colaboradores (ver
+ * ColaboradorSyncRepository.sincronizarSeNecessario). Repetido aqui pra fechar a lacuna de o
+ * heartbeat rodar em segundo plano (app fechado) sem nunca puxar admissão/desligamento nova,
+ * já que o /status só é consultado com a tela de ponto aberta.
  */
 @Serializable
 data class HeartbeatResponse(
-    @SerialName("fl_ativo") val flAtivo: Boolean = true
+    @SerialName("fl_ativo") val flAtivo: Boolean = true,
+    @SerialName("dt_cadastro_alterado") val dtCadastroAlterado: String? = null
 )

@@ -59,6 +59,11 @@ class HeartbeatWorker(
                     container.deviceRevocationHandler.revoke(
                         "Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação."
                     )
+                } else {
+                    // Carga completa, incondicional — fecha a lacuna do heartbeat rodar com o
+                    // app fechado sem nunca puxar admissão/desligamento/reset facial novo, já
+                    // que o polling de 30s da tela só roda com o app aberto.
+                    container.colaboradorSyncRepository.sincronizarTudo()
                 }
                 Result.success()
             } else {
