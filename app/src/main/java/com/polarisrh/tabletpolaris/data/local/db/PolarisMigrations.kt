@@ -324,3 +324,55 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_cadastro_confirmado` TEXT")
     }
 }
+
+/** Adiciona fl_isento e motivo_isencao em rep_core_biometria_facial — colaboradores isentos de
+ *  ponto passam a vir no sync (antes simplesmente somem do roster, como um desligado, e o
+ *  tablet dizia "matrícula não encontrada" pra alguém que existe e tem vínculo em ordem).
+ *  motivo_isencao foi removida logo em seguida (ver MIGRATION_12_13) — o backend confirmou que
+ *  não vai enviar esse campo. */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `fl_isento` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `motivo_isencao` TEXT")
+    }
+}
+
+/** Remove motivo_isencao de rep_core_biometria_facial — o backend confirmou que não vai enviar
+ *  esse campo, só o booleano fl_isento importa. SQLite não tem DROP COLUMN confiável em todas
+ *  as versões, então usa a técnica de sempre: recria a tabela sem a coluna, copia os dados,
+ *  apaga a antiga. */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `rep_core_biometria_facial_new` (
+                `num_matricula` TEXT NOT NULL PRIMARY KEY,
+                `cpf` TEXT NOT NULL,
+                `nome` TEXT NOT NULL,
+                `fl_ativo` INTEGER NOT NULL,
+                `atualizado_em` TEXT NOT NULL,
+                `embedding_tablet` BLOB,
+                `dt_cadastro_facial` TEXT,
+                `dt_cadastro_confirmado` TEXT,
+                `dt_reset_facial_aplicado` TEXT,
+                `dt_remocao_confirmada` TEXT,
+                `fl_isento` INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `rep_core_biometria_facial_new`
+                (num_matricula, cpf, nome, fl_ativo, atualizado_em, embedding_tablet,
+                 dt_cadastro_facial, dt_cadastro_confirmado, dt_reset_facial_aplicado,
+                 dt_remocao_confirmada, fl_isento)
+            SELECT num_matricula, cpf, nome, fl_ativo, atualizado_em, embedding_tablet,
+                 dt_cadastro_facial, dt_cadastro_confirmado, dt_reset_facial_aplicado,
+                 dt_remocao_confirmada, fl_isento
+            FROM `rep_core_biometria_facial`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `rep_core_biometria_facial`")
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial_new` RENAME TO `rep_core_biometria_facial`")
+    }
+}

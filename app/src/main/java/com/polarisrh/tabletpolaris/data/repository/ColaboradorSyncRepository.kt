@@ -5,6 +5,7 @@ import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorEntity
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
+import com.polarisrh.tabletpolaris.data.remote.dto.ColaboradorDto
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialCadastradaRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialNotificacaoResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialRemovidaRequest
@@ -85,43 +86,20 @@ class ColaboradorSyncRepository(
             }
             val body = response.body() ?: return
 
-            // fl_ativo=false na prática nunca aparece (desligados são omitidos, não marcados) —
-            // mas trata o caso mesmo assim, caso o backend passe a mandar explicitamente.
-            val (ativos, desligados) = body.colaboradores.partition { it.ativo }
+            // Isento (dispensado de bater ponto) vem primeiro, ANTES do particionamento por
+            // fl_ativo — o payload de isento traz fl_ativo=false (reuso do campo pra "recusar
+            // batida"), mas a pessoa continua com vínculo em ordem, então nunca deve cair no
+            // fluxo de desligamento (que apaga tudo).
+            val (isentos, resto) = body.colaboradores.partition { it.isento }
+            // fl_ativo=false, fora dos isentos, na prática nunca aparece (desligados são
+            // omitidos, não marcados) — trata o caso mesmo assim, caso o backend passe a
+            // mandar explicitamente.
+            val (ativos, desligados) = resto.partition { it.ativo }
             matriculasRecebidas += ativos.map { it.matricula }
+            matriculasRecebidas += isentos.map { it.matricula }
 
-            val entidadesAtivas = ativos.map { dto ->
-                val existente = colaboradorDao.buscarPorMatricula(dto.matricula)
-                // Regra do backend: um reset só se aplica se for POSTERIOR ao cadastro local
-                // atual (evita que um pedido de reset antigo apague um cadastro mais novo) — e
-                // só faz sentido se já existir embedding pra remover (senão um dt_reset_facial
-                // "perdido" pra alguém que nunca cadastrou dispararia uma remoção fantasma).
-                val resetPendente = dto.dtResetFacial != null &&
-                    existente?.embeddingFacial != null &&
-                    (
-                        existente.dtCadastroFacial == null ||
-                            Instant.parse(dto.dtResetFacial) > Instant.parse(existente.dtCadastroFacial)
-                        )
-                if (resetPendente) {
-                    Log.i(TAG, "Facial resetada remotamente — matrícula=${dto.matricula}, recadastro necessário neste tablet")
-                }
-                ColaboradorEntity(
-                    matricula = dto.matricula,
-                    cpf = dto.cpf,
-                    nome = dto.nome,
-                    ativo = dto.ativo,
-                    atualizadoEm = dto.atualizadoEm,
-                    embeddingFacial = if (resetPendente) null else existente?.embeddingFacial,
-                    dtCadastroFacial = if (resetPendente) null else existente?.dtCadastroFacial,
-                    dtCadastroConfirmado = if (resetPendente) null else existente?.dtCadastroConfirmado,
-                    // Só atualizado quando um reset É de fato aplicado — usado só pra saber que
-                    // "esse colaborador teve uma remoção real, pendente de confirmar" (ver
-                    // listarComRemocaoPendenteDeConfirmacao), nunca pra decidir se aplica ou não.
-                    dtResetFacialAplicado = if (resetPendente) dto.dtResetFacial else existente?.dtResetFacialAplicado,
-                    dtRemocaoConfirmada = if (resetPendente) null else existente?.dtRemocaoConfirmada
-                )
-            }
-            colaboradorDao.upsertAll(entidadesAtivas)
+            val entidades = (ativos + isentos).map { dto -> paraEntidade(dto) }
+            colaboradorDao.upsertAll(entidades)
             desligados.forEach { dto -> colaboradorDao.removerPorMatricula(dto.matricula) }
 
             cursor = body.proximoCursor
@@ -137,6 +115,43 @@ class ColaboradorSyncRepository(
 
         confirmarCadastrosPendentes()
         confirmarRemocoesPendentes()
+    }
+
+    /** Monta a entidade local a partir do DTO — comum a colaboradores normais e isentos. */
+    private suspend fun paraEntidade(dto: ColaboradorDto): ColaboradorEntity {
+        val existente = colaboradorDao.buscarPorMatricula(dto.matricula)
+        // Regra do backend: um reset só se aplica se for POSTERIOR ao cadastro local atual
+        // (evita que um pedido de reset antigo apague um cadastro mais novo) — e só faz
+        // sentido se já existir embedding pra remover (senão um dt_reset_facial "perdido" pra
+        // alguém que nunca cadastrou dispararia uma remoção fantasma).
+        val resetPendente = dto.dtResetFacial != null &&
+            existente?.embeddingFacial != null &&
+            (
+                existente.dtCadastroFacial == null ||
+                    Instant.parse(dto.dtResetFacial) > Instant.parse(existente.dtCadastroFacial)
+                )
+        if (resetPendente) {
+            Log.i(TAG, "Facial resetada remotamente — matrícula=${dto.matricula}, recadastro necessário neste tablet")
+        }
+        return ColaboradorEntity(
+            matricula = dto.matricula,
+            // Nulos só acontecem pra quem é isento (o backend não manda CPF/nome nesse caso).
+            cpf = dto.cpf ?: "",
+            nome = dto.nome ?: "",
+            // Isento vem com fl_ativo=false no payload (reuso do campo pra "recusar batida"),
+            // mas o vínculo é ativo de verdade — nunca deixa cair no fluxo de desligamento.
+            ativo = if (dto.isento) true else dto.ativo,
+            atualizadoEm = dto.atualizadoEm,
+            embeddingFacial = if (resetPendente) null else existente?.embeddingFacial,
+            dtCadastroFacial = if (resetPendente) null else existente?.dtCadastroFacial,
+            dtCadastroConfirmado = if (resetPendente) null else existente?.dtCadastroConfirmado,
+            // Só atualizado quando um reset É de fato aplicado — usado só pra saber que "esse
+            // colaborador teve uma remoção real, pendente de confirmar" (ver
+            // listarComRemocaoPendenteDeConfirmacao), nunca pra decidir se aplica ou não.
+            dtResetFacialAplicado = if (resetPendente) dto.dtResetFacial else existente?.dtResetFacialAplicado,
+            dtRemocaoConfirmada = if (resetPendente) null else existente?.dtRemocaoConfirmada,
+            isento = dto.isento
+        )
     }
 
     /**

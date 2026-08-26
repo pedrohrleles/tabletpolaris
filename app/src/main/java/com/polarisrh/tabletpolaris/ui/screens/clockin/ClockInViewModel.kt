@@ -74,6 +74,7 @@ class ClockInViewModel(
 
             when {
                 colaborador == null -> _uiState.update { it.copy(erro = "Matrícula não encontrada") }
+                colaborador.isento -> _uiState.update { it.copy(erro = "Usuário isento de registro de ponto.") }
                 !colaborador.ativo -> _uiState.update { it.copy(erro = "Colaborador inativo") }
                 colaborador.embeddingFacial != null -> aoReconhecerFacial(matricula)
                 else -> aoPrecisarConfirmarIdentidade(matricula)

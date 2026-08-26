@@ -38,7 +38,11 @@ data class ColaboradorEntity(
      *  de ficar sem saber se o pedido foi cumprido. Preenchido só depois da confirmação ter
      *  sido aceita pelo backend; se o POST falhar, fica null e é tentado de novo na próxima
      *  sincronização. */
-    @ColumnInfo(name = "dt_remocao_confirmada") val dtRemocaoConfirmada: String? = null
+    @ColumnInfo(name = "dt_remocao_confirmada") val dtRemocaoConfirmada: String? = null,
+    /** Vínculo ativo, mas dispensado de bater ponto (ex.: cargo de confiança). Quem é isento
+     *  aparece no sync normalmente (não some do roster como um desligado) — a batida é
+     *  recusada localmente com uma mensagem específica, sem nem chegar na tela de facial. */
+    @ColumnInfo(name = "fl_isento") val isento: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -52,6 +56,7 @@ data class ColaboradorEntity(
             dtCadastroConfirmado == other.dtCadastroConfirmado &&
             dtResetFacialAplicado == other.dtResetFacialAplicado &&
             dtRemocaoConfirmada == other.dtRemocaoConfirmada &&
+            isento == other.isento &&
             (embeddingFacial?.contentEquals(other.embeddingFacial ?: ByteArray(0)) ?: (other.embeddingFacial == null))
     }
 
@@ -65,6 +70,7 @@ data class ColaboradorEntity(
         result = 31 * result + (dtCadastroConfirmado?.hashCode() ?: 0)
         result = 31 * result + (dtResetFacialAplicado?.hashCode() ?: 0)
         result = 31 * result + (dtRemocaoConfirmada?.hashCode() ?: 0)
+        result = 31 * result + isento.hashCode()
         result = 31 * result + (embeddingFacial?.contentHashCode() ?: 0)
         return result
     }
