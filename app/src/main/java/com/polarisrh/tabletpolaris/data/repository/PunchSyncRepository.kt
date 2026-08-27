@@ -23,7 +23,8 @@ import java.time.Instant
 class PunchSyncRepository(
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
-    private val batidaDao: BatidaDao
+    private val batidaDao: BatidaDao,
+    private val desativacaoHandler: DesativacaoHandler
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -40,8 +41,17 @@ class PunchSyncRepository(
         // REAL das batidas — se o lote das 8:35 do João fosse aceito antes do lote das 8:30 da
         // Maria (que ficou preso numa falha), o NSR sairia fora de ordem. Por isso qualquer
         // falha de lote para a execução inteira aqui, em vez de pular pro próximo.
+        var enviadosNestaExecucao = 0
+
         for (lote in pendentes.chunked(TAMANHO_MAXIMO_LOTE)) {
             var tentativasRealinhamento = 0
+            enviadosNestaExecucao += lote.size
+            // Só é confiável quando a resposta vem 2xx — nesse caso TODAS as marcações do lote
+            // saem do PENDENTE (aceitas/duplicadas/rejeitadas), então "quanto sobra depois
+            // desse lote" é sempre exato, mesmo sem saber ainda o resultado individual de cada
+            // marcação. Numa falha (o request nem chega a ser processado de verdade pelo
+            // backend), esse valor simplesmente não é usado.
+            val filaRestanteAposEsteLote = pendentes.size - enviadosNestaExecucao
 
             while (true) {
                 // Persiste ANTES de enviar — garante que o próximo valor escolhido (mesmo após
@@ -53,6 +63,7 @@ class PunchSyncRepository(
                     nrSequenciaLote = proximaSequencia,
                     // Capturado agora, na hora do POST — não quando a fila foi montada.
                     dtDispositivo = Instant.now().toString(),
+                    nrFilaPendente = filaRestanteAposEsteLote,
                     marcacoes = lote.map { it.paraMarcacaoDto() }
                 )
                 val response = api.enviarMarcacoes("Bearer ${credentials.token}", request)
@@ -119,6 +130,9 @@ class PunchSyncRepository(
      *  enviadas mas ausentes dos três grupos (corpo omisso/inesperado) ficam pendentes — nunca
      *  assume sucesso sem confirmação explícita. */
     private suspend fun aplicarResultado(lote: List<BatidaEntity>, body: MarcacoesSyncResponse?) {
+        // Pode vir mesmo numa resposta normal de envio — ver DesativacaoHandler.
+        desativacaoHandler.processar(body?.desativacao)
+
         val agora = Instant.now().toString()
         val porIdLocal = lote.associateBy { it.idLocal }
 

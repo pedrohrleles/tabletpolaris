@@ -59,6 +59,7 @@ import com.polarisrh.tabletpolaris.ui.components.AnimatedCheckmark
 import com.polarisrh.tabletpolaris.ui.components.FrontCameraPreview
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlue
+import com.polarisrh.tabletpolaris.ui.theme.PolarisBlueDeep
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCameraPlaceholder
 import com.polarisrh.tabletpolaris.ui.theme.PolarisError
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
@@ -187,11 +188,12 @@ fun FacialCapturePlaceholderScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
 
-        // Header
+        // Header — mesmo azul-marinho profundo do cabeçalho de "Bater Ponto", pra manter as
+        // telas consistentes visualmente.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(PolarisSurfaceDark)
+                .background(PolarisBlueDeep)
                 .statusBarsPadding()
                 .padding(horizontal = 48.dp, vertical = 32.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

@@ -65,6 +65,7 @@ fun PolarisNavGraph(
             composable(PolarisDestinations.SPLASH) {
                 SplashScreen(
                     deviceAuthRepository = container.deviceAuthRepository,
+                    desativacaoHandler = container.desativacaoHandler,
                     onDeviceProvisioned = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.SPLASH) { inclusive = true }
@@ -101,6 +102,7 @@ fun PolarisNavGraph(
                     networkMonitor = container.networkMonitor,
                     colaboradorDao = container.colaboradorDao,
                     credentialsStore = container.credentialsStore,
+                    desativacaoHandler = container.desativacaoHandler,
                     onReconhecerFacial = { matricula ->
                         navController.navigate(PolarisDestinations.facialCapture(matricula))
                     },

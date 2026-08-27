@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
+import com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,20 +17,29 @@ private const val STATUS_POLL_INTERVAL_MS = 30_000L
 
 data class ClockInUiState(
     val isVerificandoMatricula: Boolean = false,
-    val erro: String? = null
+    val erro: String? = null,
+    // Não nulo = desativação em andamento (ver DesativacaoHandler) — desabilita teclado e
+    // Confirmar, mostra essa mensagem ao lado do relógio.
+    val mensagemDesativado: String? = null
 )
 
 class ClockInViewModel(
     private val deviceStatusChecker: DeviceStatusChecker,
     private val colaboradorSyncRepository: ColaboradorSyncRepository,
     private val networkMonitor: NetworkMonitor,
-    private val colaboradorDao: ColaboradorDao
+    private val colaboradorDao: ColaboradorDao,
+    private val desativacaoHandler: DesativacaoHandler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ClockInUiState())
     val uiState: StateFlow<ClockInUiState> = _uiState
 
     init {
+        viewModelScope.launch {
+            desativacaoHandler.mensagemBloqueio.collect { mensagem ->
+                _uiState.update { it.copy(mensagemDesativado = mensagem) }
+            }
+        }
         // Enquanto a tela de ponto estiver aberta: reage a quedas/retomadas de rede
         // verificando o status na hora que a rede volta, e mantém um polling de 30s
         // enquanto estiver online — assim uma desativação é percebida quase na hora,
@@ -65,7 +75,7 @@ class ClockInViewModel(
         aoReconhecerFacial: (String) -> Unit,
         aoPrecisarConfirmarIdentidade: (String) -> Unit
     ) {
-        if (_uiState.value.isVerificandoMatricula) return
+        if (_uiState.value.isVerificandoMatricula || _uiState.value.mensagemDesativado != null) return
 
         viewModelScope.launch {
             _uiState.update { it.copy(isVerificandoMatricula = true, erro = null) }

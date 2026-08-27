@@ -8,7 +8,7 @@ val PolarisSurfaceDark = Color(0xFF121729)
 
 // Accent blues, sampled from the Polaris RH "P" mark and highlighted copy
 val PolarisBlue = Color(0xFF4C7DFF)
-val PolarisBlueDeep = Color(0xFF16215C)
+val PolarisBlueDeep = Color(0xFF080F30)
 val PolarisTeal = Color(0xFF12A594)
 
 // Light card used for the code-entry panel, matches the login card on the web platform

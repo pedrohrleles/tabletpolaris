@@ -54,16 +54,23 @@ class HeartbeatWorker(
             val body = response.body()
 
             if (response.isSuccessful && body != null) {
-                if (!body.flAtivo) {
-                    Log.w(TAG, "Coletor desativado remotamente — desvinculando.")
-                    container.deviceRevocationHandler.revoke(
-                        "Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação."
-                    )
-                } else {
-                    // Carga completa, incondicional — fecha a lacuna do heartbeat rodar com o
-                    // app fechado sem nunca puxar admissão/desligamento/reset facial novo, já
-                    // que o polling de 30s da tela só roda com o app aberto.
-                    container.colaboradorSyncRepository.sincronizarTudo()
+                when {
+                    body.desativacao != null -> container.desativacaoHandler.processar(body.desativacao)
+                    // Fallback — desativação sem o bloco novo (coletor já desativado antes
+                    // dessa mudança, ou algum caso legado). Ver DesativacaoHandler pro caminho
+                    // normal, com drenagem, que é o que o backend usa desde essa entrega.
+                    !body.flAtivo -> {
+                        Log.w(TAG, "Coletor desativado remotamente (sem bloco de desativação) — desvinculando na hora.")
+                        container.deviceRevocationHandler.revoke(
+                            "Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação."
+                        )
+                    }
+                    else -> {
+                        // Carga completa, incondicional — fecha a lacuna do heartbeat rodar com o
+                        // app fechado sem nunca puxar admissão/desligamento/reset facial novo, já
+                        // que o polling de 30s da tela só roda com o app aberto.
+                        container.colaboradorSyncRepository.sincronizarTudo()
+                    }
                 }
                 Result.success()
             } else {

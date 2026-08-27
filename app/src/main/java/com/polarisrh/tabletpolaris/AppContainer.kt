@@ -23,6 +23,7 @@ import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiClient
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
 import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
+import com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceAuthRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceRevocationHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
@@ -77,6 +78,26 @@ class AppContainer(context: Context) {
      *  ajuda a calibrar o limiar com dados reais em vez de chutar. */
     val tentativaReconhecimentoDao: TentativaReconhecimentoDao = database.tentativaReconhecimentoDao()
 
+    /**
+     * Único ponto que "desvincula" o tablet: limpa a sessão/credenciais. Não mexe no cache de
+     * colaboradores nem na fila de batidas — ver [DeviceRevocationHandler].
+     */
+    val deviceRevocationHandler: DeviceRevocationHandler = DeviceRevocationHandler(
+        credentialsStore = credentialsStore,
+        onRevoked = { message -> deviceRevocationMessage.value = message }
+    )
+
+    /** Desativação com drenagem (RH desativa -> sincroniza a fila pendente -> só então
+     *  desvincula) — ver [DesativacaoHandler]. Usa o mesmo [PolarisApiClient.syncService] do
+     *  sync de batidas, já que só é chamado em segundo plano (nunca no caminho interativo). */
+    val desativacaoHandler: DesativacaoHandler = DesativacaoHandler(
+        context = context,
+        api = PolarisApiClient.syncService,
+        credentialsStore = credentialsStore,
+        batidaDao = batidaDao,
+        revocationHandler = deviceRevocationHandler
+    )
+
     /** Grava local (fila offline) na hora e nunca espera rede — ver RoomPunchRepository. */
     val punchRepository: PunchRepository = RoomPunchRepository(
         context = context,
@@ -91,16 +112,8 @@ class AppContainer(context: Context) {
     val punchSyncRepository: PunchSyncRepository = PunchSyncRepository(
         api = PolarisApiClient.syncService,
         credentialsStore = credentialsStore,
-        batidaDao = batidaDao
-    )
-
-    /**
-     * Único ponto que "desvincula" o tablet: limpa a sessão/credenciais. Não mexe no cache de
-     * colaboradores nem na fila de batidas — ver [DeviceRevocationHandler].
-     */
-    val deviceRevocationHandler: DeviceRevocationHandler = DeviceRevocationHandler(
-        credentialsStore = credentialsStore,
-        onRevoked = { message -> deviceRevocationMessage.value = message }
+        batidaDao = batidaDao,
+        desativacaoHandler = desativacaoHandler
     )
 
     val colaboradorSyncRepository: ColaboradorSyncRepository = ColaboradorSyncRepository(
@@ -112,9 +125,10 @@ class AppContainer(context: Context) {
     val deviceStatusChecker: DeviceStatusChecker = DeviceStatusChecker(
         api = polarisApiService,
         credentialsStore = credentialsStore,
-        revocationHandler = deviceRevocationHandler
+        revocationHandler = deviceRevocationHandler,
+        desativacaoHandler = desativacaoHandler
     )
 
     val deviceAuthRepository: DeviceAuthRepository =
-        RemoteDeviceAuthRepository(context, polarisApiService, credentialsStore, colaboradorSyncRepository, batidaDao)
+        RemoteDeviceAuthRepository(context, polarisApiService, credentialsStore, colaboradorSyncRepository, batidaDao, desativacaoHandler)
 }

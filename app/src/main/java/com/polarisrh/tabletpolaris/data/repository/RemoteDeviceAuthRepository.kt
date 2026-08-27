@@ -31,6 +31,7 @@ class RemoteDeviceAuthRepository(
     private val credentialsStore: DeviceCredentialsStore,
     private val colaboradorSyncRepository: ColaboradorSyncRepository,
     private val batidaDao: BatidaDao,
+    private val desativacaoHandler: DesativacaoHandler,
     private val deviceKeyManager: DeviceKeyManager = DeviceKeyManager(),
     private val telemetryCollector: DeviceTelemetryCollector = DeviceTelemetryCollector(context)
 ) : DeviceAuthRepository {
@@ -90,6 +91,11 @@ class RemoteDeviceAuthRepository(
                         timezone = body.local.timezone
                     )
                 )
+                // Sem isso, um bloqueio de desativação da sessão ANTERIOR (limpo nas
+                // credenciais, mas não no estado em memória do DesativacaoHandler — que é um
+                // singleton vivo enquanto o processo do app não reinicia) continuava marcando
+                // "Tablet desativado" mesmo depois de uma ativação nova bem-sucedida.
+                desativacaoHandler.resetar()
                 // O worker periódico só roda pela 1ª vez depois de 15min do agendamento — sem
                 // isso o tablet ficaria reportando dados desatualizados até lá.
                 val workManager = WorkManager.getInstance(context)

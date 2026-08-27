@@ -42,6 +42,14 @@ class RoomPunchRepository(
         val credentials = credentialsStore.read()
             ?: return Result.failure(IllegalStateException("Dispositivo não ativado"))
 
+        // Camada extra de defesa: a tela de "Bater Ponto" já bloqueia teclado/Confirmar assim
+        // que a desativação é vista, mas alguém que já estava no meio do reconhecimento facial
+        // nesse instante ainda chegaria até aqui — descarta sem gravar, por instrução
+        // explícita ("não é por nossa conta"). Ver DesativacaoHandler.
+        if (credentialsStore.estaBloqueadoPorDesativacao()) {
+            return Result.failure(IllegalStateException("Tablet desativado"))
+        }
+
         val idLocal = UUID.randomUUID().toString()
         val instanteRegistro = Instant.now()
         val dtHrMarcacao = instanteRegistro.toString()

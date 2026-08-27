@@ -28,7 +28,8 @@ private val KeySize = 112.dp
 fun NumericKeypad(
     onDigit: (String) -> Unit,
     onBackspace: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Column(
         modifier = modifier,
@@ -43,6 +44,7 @@ fun NumericKeypad(
                             val interactionSource = remember { MutableInteractionSource() }
                             OutlinedButton(
                                 onClick = onBackspace,
+                                enabled = enabled,
                                 interactionSource = interactionSource,
                                 contentPadding = PaddingValues(0.dp),
                                 modifier = Modifier
@@ -56,6 +58,7 @@ fun NumericKeypad(
                             val interactionSource = remember { MutableInteractionSource() }
                             OutlinedButton(
                                 onClick = { onDigit(key) },
+                                enabled = enabled,
                                 interactionSource = interactionSource,
                                 contentPadding = PaddingValues(0.dp),
                                 modifier = Modifier
