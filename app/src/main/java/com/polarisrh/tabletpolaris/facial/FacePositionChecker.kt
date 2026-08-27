@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PointF
-import android.graphics.Rect
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
@@ -15,21 +14,6 @@ import kotlin.coroutines.resume
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlinx.coroutines.suspendCancellableCoroutine
-
-/** Área do rosto em relação à área do PRÓPRIO OVAL (não do frame inteiro) — mais robusto a
- *  variações de resolução do bitmap capturado, e é diretamente o que o usuário vê na tela.
- *  Abaixo disso, o rosto está pequeno demais dentro do oval (longe da câmera). */
-private const val RAZAO_MINIMA_AREA = 0.35f
-
-/** Acima disso, o rosto está grande demais em relação ao oval (perto demais da câmera). */
-private const val RAZAO_MAXIMA_AREA = 1.8f
-
-/** Folga além do próprio oval antes de considerar o rosto "fora" — cobre tanto a diferença
- *  entre o retângulo do rosto e a curva oval (os cantos do oval não têm rosto mesmo estando
- *  bem posicionado) quanto o caso de um rosto BEM encaixado, encostando na borda do oval, que
- *  não pode ser rejeitado por estar "no limite" (por isso a margem é generosa, maior que só a
- *  diferença geométrica oval/retângulo exigiria). */
-private const val MARGEM_TOLERANCIA_OVAL = 0.22f
 
 /** Tamanho do recorte alinhado — já bate com o input esperado pelo MobileFaceNet (112x112),
  *  então o resize no [FaceEmbeddingExtractor] vira só uma garantia, não um redimensionamento
@@ -50,12 +34,11 @@ private const val CENTRO_Y_OLHOS_ALVO = 51.6f
 private const val DISTANCIA_OLHOS_ALVO = 35.24f
 
 /**
- * Roda a detecção facial direto no bitmap que está sendo exibido/capturado (PreviewView.bitmap),
- * comparando contra a área real do oval nesse MESMO bitmap. Não usa um stream de ImageAnalysis
- * separado da câmera — esse stream tinha campo de visão e resolução diferentes do que a pessoa
- * via no Preview, então "dentro do oval" e "dentro do que era analisado" eram coisas diferentes,
- * causando falsos positivos/negativos de enquadramento. Rodando na mesma imagem exibida, os dois
- * nunca mais divergem.
+ * Roda a detecção facial direto no bitmap que está sendo exibido/capturado (PreviewView.bitmap).
+ * Não usa um stream de ImageAnalysis separado da câmera — esse stream tinha campo de visão e
+ * resolução diferentes do que a pessoa via no Preview, então o que era validado e o que era
+ * exibido eram coisas diferentes, causando falsos positivos/negativos. Rodando na mesma imagem
+ * exibida, os dois nunca mais divergem.
  */
 class FacePositionChecker {
 
@@ -78,32 +61,15 @@ class FacePositionChecker {
             .build()
     )
 
-    suspend fun verificar(bitmap: Bitmap, ovalRect: Rect): FaceDetectionStatus {
+    /** Só valida presença de rosto (nenhum/um/mais de um) — ver justificativa de não checar
+     *  tamanho/posição em [FaceDetectionStatus]. */
+    suspend fun verificar(bitmap: Bitmap): FaceDetectionStatus {
         val faces = detectar(detector, bitmap)
 
         return when {
             faces.isEmpty() -> FaceDetectionStatus.SemRosto
             faces.size > 1 -> FaceDetectionStatus.MultiplosRostos
-            else -> {
-                val box = faces[0].boundingBox
-                val areaRosto = box.width().toFloat() * box.height().toFloat()
-                val areaOval = ovalRect.width().toFloat() * ovalRect.height().toFloat()
-                val razaoArea = if (areaOval > 0f) areaRosto / areaOval else 0f
-
-                val margemX = ovalRect.width() * MARGEM_TOLERANCIA_OVAL
-                val margemY = ovalRect.height() * MARGEM_TOLERANCIA_OVAL
-                val contido = box.left >= ovalRect.left - margemX &&
-                    box.right <= ovalRect.right + margemX &&
-                    box.top >= ovalRect.top - margemY &&
-                    box.bottom <= ovalRect.bottom + margemY
-
-                when {
-                    razaoArea < RAZAO_MINIMA_AREA -> FaceDetectionStatus.RostoDistante
-                    razaoArea > RAZAO_MAXIMA_AREA -> FaceDetectionStatus.RostoPerto
-                    !contido -> FaceDetectionStatus.ForaDoCentro
-                    else -> FaceDetectionStatus.Pronto
-                }
-            }
+            else -> FaceDetectionStatus.Pronto
         }
     }
 

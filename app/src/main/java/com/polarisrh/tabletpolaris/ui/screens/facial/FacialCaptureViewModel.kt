@@ -1,7 +1,6 @@
 package com.polarisrh.tabletpolaris.ui.screens.facial
 
 import android.graphics.Bitmap
-import android.graphics.Rect
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -92,7 +91,6 @@ class FacialCaptureViewModel(
     private val facePositionChecker = FacePositionChecker()
 
     private var capturarFrameBruto: (() -> Bitmap?)? = null
-    private var calcularOvalRect: ((Bitmap) -> Rect)? = null
     private var onPunchRegistered: ((PunchResult) -> Unit)? = null
 
     private var jobAtivo: Job? = null
@@ -104,33 +102,32 @@ class FacialCaptureViewModel(
 
     /**
      * Chamado uma vez pela tela, assim que a câmera fica disponível.
-     * [capturarFrameBruto] devolve o frame inteiro exibido (usado tanto pra checar
-     * enquadramento quanto como fonte do recorte pro embedding — o recorte em si é sempre
-     * feito ao redor do rosto DETECTADO, não de uma área fixa da tela, ver [amostrarEmbedding]).
-     * [calcularOvalRect] devolve, pra um bitmap dado, o retângulo do oval nesse mesmo bitmap.
+     * [capturarFrameBruto] devolve o frame inteiro exibido (usado tanto pra checar se há rosto
+     * quanto como fonte do recorte pro embedding — o recorte em si é sempre feito ao redor do
+     * rosto DETECTADO, não de uma área fixa da tela, ver [amostrarEmbedding]).
      */
     fun iniciar(
         capturarFrameBruto: () -> Bitmap?,
-        calcularOvalRect: (Bitmap) -> Rect,
         onPunchRegistered: (PunchResult) -> Unit
     ) {
         this.capturarFrameBruto = capturarFrameBruto
-        this.calcularOvalRect = calcularOvalRect
         this.onPunchRegistered = onPunchRegistered
         monitorarEnquadramento()
     }
 
     /**
      * Roda a detecção direto no mesmo bitmap exibido/capturado (PreviewView.bitmap), não num
-     * stream de análise separado — garante que "dentro do oval" seja checado exatamente
-     * contra o que a pessoa vê na tela, sem descompasso de rotação/espelhamento/campo de
-     * visão entre streams diferentes da câmera (era a causa real da assimetria esquerda/
-     * direita e do "preciso afastar a câmera" reportados).
+     * stream de análise separado — evita descompasso de rotação/espelhamento/campo de visão
+     * entre streams diferentes da câmera. Só valida presença de rosto (nenhum/um/mais de um) —
+     * sem checagem de tamanho ou posição: a etapa de alinhamento (ver
+     * [FacePositionChecker.detectarEAlinhar]) já normaliza o recorte final pro tamanho que o
+     * MobileFaceNet espera, independente de distância. Forçar um tamanho "ideal" na tela (via
+     * zoom ou área mínima) só piorava a nitidez do recorte real sem ajudar em nada — descartado
+     * depois de medido em campo (similaridade caindo pra perto do limiar com zoom aplicado).
      *
      * Continua rodando mesmo durante o hold/verificação (isScanning=true) — é assim que a
-     * gente detecta o rosto saindo do enquadramento NO MEIO do cadastro/reconhecimento e
-     * cancela o progresso (ver [avaliarComDebounce]), em vez de deixar rodar até o fim com
-     * amostras ruins.
+     * gente detecta o rosto sumindo NO MEIO do cadastro/reconhecimento e cancela o progresso
+     * (ver [avaliarComDebounce]), em vez de deixar rodar até o fim com amostras ruins.
      */
     private fun monitorarEnquadramento() {
         viewModelScope.launch {
@@ -138,8 +135,7 @@ class FacialCaptureViewModel(
                 delay(INTERVALO_MONITORAMENTO_MS)
 
                 val bitmap = capturarFrameBruto?.invoke() ?: continue
-                val ovalRect = calcularOvalRect?.invoke(bitmap) ?: continue
-                val status = facePositionChecker.verificar(bitmap, ovalRect)
+                val status = facePositionChecker.verificar(bitmap)
                 avaliarComDebounce(status)
             }
         }

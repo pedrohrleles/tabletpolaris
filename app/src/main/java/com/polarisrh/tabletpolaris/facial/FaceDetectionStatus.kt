@@ -1,14 +1,13 @@
 package com.polarisrh.tabletpolaris.facial
 
-/** Espelha as validações de qualidade que o web já usa no cadastro (main.py/reconhecimento
- *  facial): nenhum rosto, mais de um rosto, ou rosto pequeno/longe demais são rejeitados. */
+/** Só valida presença de rosto: nenhum, mais de um, ou exatamente um (Pronto). Sem checagem de
+ *  tamanho/posição — a etapa de alinhamento (ver [FacePositionChecker.detectarEAlinhar]) já
+ *  normaliza o recorte final pro tamanho que o MobileFaceNet espera, independente de distância;
+ *  validar tamanho aqui (com zoom ou área mínima) só forçava um "encaixe" artificial que
+ *  piorava a nitidez do recorte real, sem ajudar em nada — medido em campo (similaridade caindo
+ *  pra perto do limiar com zoom aplicado). */
 sealed interface FaceDetectionStatus {
     data object SemRosto : FaceDetectionStatus
     data object MultiplosRostos : FaceDetectionStatus
-    data object RostoDistante : FaceDetectionStatus
-    /** Rosto grande demais em relação ao oval — câmera perto demais do rosto. */
-    data object RostoPerto : FaceDetectionStatus
-    /** Rosto do tamanho certo, mas fora do centro do enquadramento (ex.: canto da câmera). */
-    data object ForaDoCentro : FaceDetectionStatus
     data object Pronto : FaceDetectionStatus
 }
