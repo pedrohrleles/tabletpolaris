@@ -6,6 +6,7 @@ import com.polarisrh.tabletpolaris.data.local.db.BatidaDao
 import com.polarisrh.tabletpolaris.data.local.db.BatidaEntity
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacaoDto
+import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncErro400
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncErrorResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncResponse
@@ -33,6 +34,12 @@ class PunchSyncRepository(
 
         var proximaSequencia = proximaSequenciaValida()
 
+        // NUNCA pode processar um lote mais recente antes de um mais antigo que ainda não
+        // sincronizou: listarPendentes() ordena por dt_hr_marcacao ASC, e o NSR (número
+        // sequencial de registro, exigência legal da Portaria 671) tem que refletir a ordem
+        // REAL das batidas — se o lote das 8:35 do João fosse aceito antes do lote das 8:30 da
+        // Maria (que ficou preso numa falha), o NSR sairia fora de ordem. Por isso qualquer
+        // falha de lote para a execução inteira aqui, em vez de pular pro próximo.
         for (lote in pendentes.chunked(TAMANHO_MAXIMO_LOTE)) {
             var tentativasRealinhamento = 0
 
@@ -44,6 +51,8 @@ class PunchSyncRepository(
 
                 val request = MarcacoesSyncRequest(
                     nrSequenciaLote = proximaSequencia,
+                    // Capturado agora, na hora do POST — não quando a fila foi montada.
+                    dtDispositivo = Instant.now().toString(),
                     marcacoes = lote.map { it.paraMarcacaoDto() }
                 )
                 val response = api.enviarMarcacoes("Bearer ${credentials.token}", request)
@@ -52,6 +61,25 @@ class PunchSyncRepository(
                     aplicarResultado(lote, response.body())
                     proximaSequencia += 1
                     break
+                }
+
+                if (response.code() == 400) {
+                    val erro400 = parseErro400(response)
+                    if (erro400?.erro == "relogio_dessincronizado") {
+                        // Falha temporária — mantém a fila (não marca como sincronizado nem
+                        // rejeitado) e NÃO avança a sequência: o próximo ciclo relê tudo do
+                        // zero e tenta de novo sozinho assim que o relógio for corrigido.
+                        Log.w(
+                            TAG,
+                            "Relógio do tablet dessincronizado — drift=${erro400.nrDriftSegundos}s " +
+                                "(máximo corrigível: ${erro400.nrDriftMaximoCorrigivelSegundos}s). " +
+                                "Fila mantida, sequência não avança até o relógio ser corrigido."
+                        )
+                        val agora = Instant.now().toString()
+                        val motivo = erro400.message ?: "Relógio do tablet dessincronizado"
+                        lote.forEach { batidaDao.registrarFalhaSincronizacao(it.id, agora, motivo) }
+                        return
+                    }
                 }
 
                 if (response.code() == 409 && tentativasRealinhamento < MAX_TENTATIVAS_REALINHAMENTO) {
@@ -95,7 +123,19 @@ class PunchSyncRepository(
         val porIdLocal = lote.associateBy { it.idLocal }
 
         body?.aceitas?.forEach { aceita ->
-            porIdLocal[aceita.idLocal]?.let { batidaDao.marcarComoSincronizado(it.id, agora) }
+            porIdLocal[aceita.idLocal]?.let { batida ->
+                batidaDao.marcarComoSincronizado(batida.id, agora)
+                // A hora gravada pelo backend é a corrigida — pode diferir da que mandamos.
+                // Essa diferença é o desvio real do relógio do tablet no momento da batida.
+                val corrigida = aceita.dtHrMarcacaoCorrigida
+                if (corrigida != null && corrigida != batida.dtHrMarcacao) {
+                    Log.i(
+                        TAG,
+                        "Horário corrigido pelo servidor — matrícula=${batida.matricula} " +
+                            "enviado=${batida.dtHrMarcacao} gravado=$corrigida"
+                    )
+                }
+            }
         }
         body?.duplicadas?.forEach { duplicada ->
             porIdLocal[duplicada.idLocal]?.let { batidaDao.marcarComoSincronizado(it.id, agora) }
@@ -114,6 +154,11 @@ class PunchSyncRepository(
             runCatching { json.decodeFromString<MarcacoesSyncErrorResponse>(corpo) }.getOrNull()
         }
 
+    private fun parseErro400(response: Response<MarcacoesSyncResponse>): MarcacoesSyncErro400? =
+        response.errorBody()?.string()?.let { corpo ->
+            runCatching { json.decodeFromString<MarcacoesSyncErro400>(corpo) }.getOrNull()
+        }
+
     private fun BatidaEntity.paraMarcacaoDto() = MarcacaoDto(
         idLocal = idLocal,
         nrMatricula = matricula,
@@ -123,7 +168,11 @@ class PunchSyncRepository(
     )
 
     private companion object {
-        const val TAMANHO_MAXIMO_LOTE = 50
+        // Reduzido de 50 pra 15 depois de ver, em produção, um lote de ~7 marcações já levar
+        // pouco mais de 4s no backend pra processar (assinatura + gravação + auditoria de cada
+        // uma) — um lote de 50 chegava perto do teto de 30s do syncService, sem margem pra rede
+        // mais lenta ou o backend ocupado. Com 15, mesmo um dia ruim fica bem abaixo do timeout.
+        const val TAMANHO_MAXIMO_LOTE = 15
         const val MAX_TENTATIVAS_REALINHAMENTO = 2
         const val TAG = "PunchSyncRepository"
     }

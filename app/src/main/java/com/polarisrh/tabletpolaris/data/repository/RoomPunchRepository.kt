@@ -13,7 +13,6 @@ import com.polarisrh.tabletpolaris.data.local.db.BatidaEntity
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.work.PunchSyncWorker
 import java.time.Instant
-import java.time.LocalDateTime
 import java.util.UUID
 
 /**
@@ -44,7 +43,8 @@ class RoomPunchRepository(
             ?: return Result.failure(IllegalStateException("Dispositivo não ativado"))
 
         val idLocal = UUID.randomUUID().toString()
-        val dtHrMarcacao = Instant.now().toString()
+        val instanteRegistro = Instant.now()
+        val dtHrMarcacao = instanteRegistro.toString()
         // Payload de assinatura confirmado com o backend: quatro valores, join com "|", sem
         // espaços — ver DeviceKeyManager.assinar().
         val assinatura = deviceKeyManager.assinar(
@@ -67,7 +67,7 @@ class RoomPunchRepository(
 
         dispararSincronizacaoImediata()
 
-        return Result.success(PunchResult(matriculaLimpa, LocalDateTime.now()))
+        return Result.success(PunchResult(matriculaLimpa, instanteRegistro))
     }
 
     /** Enfileira uma tentativa imediata (substitui qualquer tentativa ainda não iniciada) — o

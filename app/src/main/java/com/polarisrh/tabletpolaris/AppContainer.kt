@@ -85,9 +85,11 @@ class AppContainer(context: Context) {
         credentialsStore = credentialsStore
     )
 
-    /** Drena a fila offline de batidas contra o backend — chamado só pelo PunchSyncWorker. */
+    /** Drena a fila offline de batidas contra o backend — chamado só pelo PunchSyncWorker.
+     *  Usa [PolarisApiClient.syncService] (timeout maior) em vez do [polarisApiService] padrão
+     *  — nunca roda no caminho interativo, então pode esperar mais que os 4s da tela de ponto. */
     val punchSyncRepository: PunchSyncRepository = PunchSyncRepository(
-        api = polarisApiService,
+        api = PolarisApiClient.syncService,
         credentialsStore = credentialsStore,
         batidaDao = batidaDao
     )

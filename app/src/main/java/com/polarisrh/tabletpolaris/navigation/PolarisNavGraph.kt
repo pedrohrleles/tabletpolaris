@@ -23,7 +23,6 @@ import com.polarisrh.tabletpolaris.ui.screens.facial.ModoCaptura
 import com.polarisrh.tabletpolaris.ui.screens.setup.DeviceSetupScreen
 import com.polarisrh.tabletpolaris.ui.screens.splash.SplashScreen
 import com.polarisrh.tabletpolaris.ui.screens.success.PunchSuccessScreen
-import java.time.ZoneId
 
 object PolarisDestinations {
     const val SPLASH = "splash"
@@ -101,6 +100,7 @@ fun PolarisNavGraph(
                     colaboradorSyncRepository = container.colaboradorSyncRepository,
                     networkMonitor = container.networkMonitor,
                     colaboradorDao = container.colaboradorDao,
+                    credentialsStore = container.credentialsStore,
                     onReconhecerFacial = { matricula ->
                         navController.navigate(PolarisDestinations.facialCapture(matricula))
                     },
@@ -160,16 +160,18 @@ fun PolarisNavGraph(
                     networkMonitor = container.networkMonitor,
                     audioPlayer = container.audioPlayer,
                     onPunchRegistered = { punchResult ->
-                        val timestampMillis = punchResult.timestamp
-                            .atZone(ZoneId.systemDefault())
-                            .toInstant()
-                            .toEpochMilli()
+                        val timestampMillis = punchResult.timestamp.toEpochMilli()
                         navController.navigate(PolarisDestinations.punchSuccess(matricula, timestampMillis)) {
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
                     onCadastroConcluido = {},
-                    onCancel = { navController.popBackStack() }
+                    onCancel = { navController.popBackStack() },
+                    onTimeout = {
+                        navController.navigate(PolarisDestinations.CLOCK_IN) {
+                            popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }
+                        }
+                    }
                 )
             }
 
@@ -198,7 +200,12 @@ fun PolarisNavGraph(
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
-                    onCancel = { navController.popBackStack() }
+                    onCancel = { navController.popBackStack() },
+                    onTimeout = {
+                        navController.navigate(PolarisDestinations.CLOCK_IN) {
+                            popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }
+                        }
+                    }
                 )
             }
 
@@ -215,6 +222,7 @@ fun PolarisNavGraph(
                     matricula = matricula,
                     timestampMillis = timestampMillis,
                     audioPlayer = container.audioPlayer,
+                    credentialsStore = container.credentialsStore,
                     onTimeout = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }

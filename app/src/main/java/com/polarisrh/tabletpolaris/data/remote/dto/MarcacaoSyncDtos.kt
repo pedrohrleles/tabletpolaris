@@ -23,10 +23,14 @@ data class MarcacaoDto(
 /** [nrSequenciaLote] é por lote (requisição), não por marcação — estritamente maior que a
  *  última aceita para esse coletor (saltos são permitidos). Gerado a partir de
  *  System.currentTimeMillis() combinado com o último valor persistido (ver
- *  DeviceCredentialsStore.ultimaSequenciaLote) — protege contra o relógio do tablet regredir. */
+ *  DeviceCredentialsStore.ultimaSequenciaLote) — protege contra o relógio do tablet regredir.
+ *  [dtDispositivo] é o relógio do tablet no instante do POST (não de quando a fila foi
+ *  montada) — mesmo valor que já mandamos no heartbeat; o backend usa pra detectar relógio
+ *  dessincronizado (ver MarcacoesSyncErro400). */
 @Serializable
 data class MarcacoesSyncRequest(
     @SerialName("nr_sequencia_lote") val nrSequenciaLote: Long,
+    @SerialName("dt_dispositivo") val dtDispositivo: String,
     val marcacoes: List<MarcacaoDto>
 )
 
@@ -43,7 +47,13 @@ data class MarcacoesSyncResponse(
 
 @Serializable
 data class MarcacaoAceitaDto(
-    @SerialName("id_local") val idLocal: String
+    @SerialName("id_local") val idLocal: String,
+    // Instante já ancorado no relógio do servidor (ISO 8601 UTC) — pode diferir do
+    // dt_hr_marcacao que mandamos; a diferença é o desvio real do relógio deste tablet (ver
+    // log em PunchSyncRepository.aplicarResultado). Confirmado com o backend — mesmo nome do
+    // contrato de envio. id_marcacao/nr_nsr/tp_marcacao/comprovante também vêm na resposta, mas
+    // não são usados aqui — nada nesse fluxo depende deles hoje.
+    @SerialName("dt_hr_marcacao") val dtHrMarcacaoCorrigida: String? = null
 )
 
 @Serializable
@@ -64,4 +74,15 @@ data class MarcacaoRejeitadaDto(
 @Serializable
 data class MarcacoesSyncErrorResponse(
     @SerialName("nr_ultima_sequencia_aceita") val nrUltimaSequenciaAceita: Long? = null
+)
+
+/** Corpo de erro do HTTP 400 quando o relógio do tablet está fora de sincronia com a Hora
+ *  Legal Brasileira. Falha temporária — mantém a fila local, não avança nr_sequencia_lote;
+ *  depois do relógio corrigido, o próximo ciclo tenta de novo sozinho. */
+@Serializable
+data class MarcacoesSyncErro400(
+    val erro: String? = null,
+    val message: String? = null,
+    @SerialName("nr_drift_segundos") val nrDriftSegundos: Long? = null,
+    @SerialName("nr_drift_maximo_corrigivel_segundos") val nrDriftMaximoCorrigivelSegundos: Long? = null
 )

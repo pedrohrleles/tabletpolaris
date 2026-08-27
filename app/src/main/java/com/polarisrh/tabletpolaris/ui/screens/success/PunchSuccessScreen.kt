@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.polarisrh.tabletpolaris.audio.PolarisAudioPlayer
+import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.ui.components.AnimatedCheckmark
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
@@ -30,6 +31,7 @@ fun PunchSuccessScreen(
     matricula: String,
     timestampMillis: Long,
     audioPlayer: PolarisAudioPlayer,
+    credentialsStore: DeviceCredentialsStore,
     onTimeout: () -> Unit
 ) {
     LaunchedEffect(matricula) {
@@ -39,8 +41,13 @@ fun PunchSuccessScreen(
     }
 
     val formattedTimestamp = remember(timestampMillis) {
+        // Mesmo fuso do local de trabalho registrado usado no relógio de "Bater ponto" — cai
+        // pro fuso do próprio tablet só se o local não tiver essa informação.
+        val zoneId = credentialsStore.read()?.timezone
+            ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: ZoneId.systemDefault()
         Instant.ofEpochMilli(timestampMillis)
-            .atZone(ZoneId.systemDefault())
+            .atZone(zoneId)
             .format(TIMESTAMP_FORMATTER)
     }
 

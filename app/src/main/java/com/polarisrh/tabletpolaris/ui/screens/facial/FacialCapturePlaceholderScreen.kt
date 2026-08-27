@@ -81,6 +81,11 @@ private val StatusBarIdleColor = PolarisMuted.copy(alpha = 0.25f)
 // total) terminar de brincar antes da tela trocar — 1500ms cortava a animação pela metade.
 private const val DELAY_APOS_CADASTRO_MS = 2500L
 
+/** Ninguém deve ficar preso indefinidamente nessas telas (câmera ligada, matrícula exposta) se
+ *  esquecer de cancelar — conta a partir da entrada nesta tela; volta pra "Bater Ponto"
+ *  automaticamente se ninguém bater o ponto (ou cadastrar) nem cancelar antes disso. */
+private const val TIMEOUT_INATIVIDADE_MS = 60_000L
+
 /** Fixa a altura do rodapé — sem isso, o Cancelar mudando de altura (habilitado/desabilitado)
  *  empurraria a área da câmera (e o oval) de tamanho. Conteúdo fica centralizado verticalmente
  *  dentro desse espaço fixo. Só o botão Cancelar mora aqui — status e erro agora aparecem
@@ -101,7 +106,8 @@ fun FacialCapturePlaceholderScreen(
     audioPlayer: PolarisAudioPlayer,
     onPunchRegistered: (PunchResult) -> Unit,
     onCadastroConcluido: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onTimeout: () -> Unit
 ) {
     val viewModel: FacialCaptureViewModel = viewModel(
         factory = viewModelFactory {
@@ -147,6 +153,15 @@ fun FacialCapturePlaceholderScreen(
             calcularOvalRect = { bitmap -> calcularOvalRect(bitmap, boxSizePx, guideWidthPx, guideHeightPx) },
             onPunchRegistered = onPunchRegistered
         )
+    }
+
+    // Conta a partir da entrada nesta tela (composable novo a cada navegação — sair por
+    // "Cancelar" ou por bater o ponto/cadastrar cancela este efeito junto). Sem reset por
+    // atividade: são no máximo alguns segundos de captura, então 1min de folga é so pra quem
+    // esquece a tela aberta.
+    LaunchedEffect(Unit) {
+        delay(TIMEOUT_INATIVIDADE_MS)
+        onTimeout()
     }
 
     // Cadastro e reconhecimento são fluxos separados: ao cadastrar, mostra a confirmação e
