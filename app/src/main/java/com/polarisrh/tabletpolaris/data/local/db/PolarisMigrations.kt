@@ -135,3 +135,244 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("ALTER TABLE `rep_aud_biometria_log_new` RENAME TO `rep_aud_biometria_log`")
     }
 }
+
+/** `batida_pendente` reestruturada em `batidas_sincronizadas` — deixa de ser só a fila offline
+ *  (que exigia apagar a linha depois de sincronizar) e passa a guardar o histórico completo de
+ *  TODAS as batidas do tablet; "fila offline" agora é só o filtro `fl_sincronizado = 0` sobre
+ *  essa mesma tabela (padrão outbox). Também adiciona as colunas de identificação vindas do
+ *  backend (id_empregador, id_vinculo, id_empregado, nr_cpf_empregado — ainda sem fonte de
+ *  dado definida, ficam nulas por enquanto) e as de rastreio de tentativa de sincronização. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `id_vinculo` TEXT,
+                `id_empregado` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `fl_sincronizado` INTEGER NOT NULL DEFAULT 0,
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, num_matricula, dt_hr_marcacao, fl_sincronizado, qtd_tentativas_sincronizacao)
+            SELECT id, matricula, dtHora, 0, 0 FROM `batida_pendente`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batida_pendente`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}
+
+/** Remove `id_vinculo` e `id_empregado` de `batidas_sincronizadas` — decidido que não serão
+ *  usados. `nr_cpf_empregado` fica (já temos essa informação disponível localmente). */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `fl_sincronizado` INTEGER NOT NULL DEFAULT 0,
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao)
+            SELECT id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao
+            FROM `batidas_sincronizadas`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batidas_sincronizadas`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}
+
+/** Adiciona as colunas que o contrato real de POST rep-p/dispositivos/marcacoes exige por
+ *  marcação: `id_local` (UUID de idempotência), `assinatura` (ECDSA sobre
+ *  id_coletor|id_local|num_matricula|dt_hr_marcacao) e a métrica de auditoria (`nr_score`/
+ *  `nr_threshold`). A tabela nunca teve uma implementação real de escrita até agora (só o
+ *  `FakePunchRepository`), então não existem linhas de verdade para migrar — os defaults abaixo
+ *  são só para satisfazer o NOT NULL do SQLite. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `id_local` TEXT NOT NULL DEFAULT '',
+                `assinatura` TEXT NOT NULL DEFAULT '',
+                `nr_score` REAL NOT NULL DEFAULT 0,
+                `nr_threshold` REAL NOT NULL DEFAULT 0,
+                `fl_sincronizado` INTEGER NOT NULL DEFAULT 0,
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao)
+            SELECT id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 fl_sincronizado, qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao
+            FROM `batidas_sincronizadas`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batidas_sincronizadas`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}
+
+/** Troca `fl_sincronizado` (booleano) por `status_sincronizacao` (PENDENTE/SINCRONIZADA/
+ *  REJEITADA) — o backend confirmou que o 201 do lote não significa "tudo aceito": cada
+ *  marcação é processada isoladamente e pode vir rejeitada em definitivo (matrícula desligada,
+ *  sem escala vigente, assinatura inválida). Um booleano não tem como distinguir "ainda
+ *  pendente" de "rejeitada pra sempre" sem continuar reaparecendo em listarPendentes(). */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `batidas_sincronizadas_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `id_empregador` TEXT,
+                `num_matricula` TEXT NOT NULL,
+                `nr_cpf_empregado` TEXT,
+                `dt_hr_marcacao` TEXT NOT NULL,
+                `id_local` TEXT NOT NULL DEFAULT '',
+                `assinatura` TEXT NOT NULL DEFAULT '',
+                `nr_score` REAL NOT NULL DEFAULT 0,
+                `nr_threshold` REAL NOT NULL DEFAULT 0,
+                `status_sincronizacao` TEXT NOT NULL DEFAULT 'PENDENTE',
+                `qtd_tentativas_sincronizacao` INTEGER NOT NULL DEFAULT 0,
+                `dt_ultima_tentativa` TEXT,
+                `mensagem_erro_sincronizacao` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `batidas_sincronizadas_new`
+                (id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 id_local, assinatura, nr_score, nr_threshold, status_sincronizacao,
+                 qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao)
+            SELECT id, id_empregador, num_matricula, nr_cpf_empregado, dt_hr_marcacao,
+                 id_local, assinatura, nr_score, nr_threshold,
+                 CASE WHEN fl_sincronizado = 1 THEN 'SINCRONIZADA' ELSE 'PENDENTE' END,
+                 qtd_tentativas_sincronizacao, dt_ultima_tentativa, mensagem_erro_sincronizacao
+            FROM `batidas_sincronizadas`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `batidas_sincronizadas`")
+        db.execSQL("ALTER TABLE `batidas_sincronizadas_new` RENAME TO `batidas_sincronizadas`")
+    }
+}
+
+/** Adiciona dt_reset_facial_aplicado em rep_core_biometria_facial — reset remoto de facial
+ *  pedido pelo painel web (ADD COLUMN simples, sem precisar da técnica de recriar tabela, já
+ *  que só estamos adicionando uma coluna anulável). */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_reset_facial_aplicado` TEXT")
+    }
+}
+
+/** Adiciona dt_remocao_confirmada em rep_core_biometria_facial — null enquanto a remoção local
+ *  de uma facial (por dt_reset_facial) ainda não foi confirmada pro backend via POST
+ *  facial-removida. Sem essa coluna, uma confirmação que falhasse (rede caiu) se perderia pra
+ *  sempre — o colaborador nunca veria "Facial Removida" no painel, mesmo com a facial já
+ *  apagada de verdade no tablet. */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_remocao_confirmada` TEXT")
+    }
+}
+
+/** Adiciona dt_cadastro_facial e dt_cadastro_confirmado em rep_core_biometria_facial — o
+ *  backend confirmou o contrato completo do ciclo de facial: um dt_reset_facial só é aplicado
+ *  se for posterior a dt_cadastro_facial (a data do cadastro local atual), e o cadastro em si
+ *  precisa ser avisado via POST facial-cadastrada pra o colaborador ver "Facial Cadastrada" no
+ *  painel web. */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_cadastro_facial` TEXT")
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `dt_cadastro_confirmado` TEXT")
+    }
+}
+
+/** Adiciona fl_isento e motivo_isencao em rep_core_biometria_facial — colaboradores isentos de
+ *  ponto passam a vir no sync (antes simplesmente somem do roster, como um desligado, e o
+ *  tablet dizia "matrícula não encontrada" pra alguém que existe e tem vínculo em ordem).
+ *  motivo_isencao foi removida logo em seguida (ver MIGRATION_12_13) — o backend confirmou que
+ *  não vai enviar esse campo. */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `fl_isento` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial` ADD COLUMN `motivo_isencao` TEXT")
+    }
+}
+
+/** Remove motivo_isencao de rep_core_biometria_facial — o backend confirmou que não vai enviar
+ *  esse campo, só o booleano fl_isento importa. SQLite não tem DROP COLUMN confiável em todas
+ *  as versões, então usa a técnica de sempre: recria a tabela sem a coluna, copia os dados,
+ *  apaga a antiga. */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `rep_core_biometria_facial_new` (
+                `num_matricula` TEXT NOT NULL PRIMARY KEY,
+                `cpf` TEXT NOT NULL,
+                `nome` TEXT NOT NULL,
+                `fl_ativo` INTEGER NOT NULL,
+                `atualizado_em` TEXT NOT NULL,
+                `embedding_tablet` BLOB,
+                `dt_cadastro_facial` TEXT,
+                `dt_cadastro_confirmado` TEXT,
+                `dt_reset_facial_aplicado` TEXT,
+                `dt_remocao_confirmada` TEXT,
+                `fl_isento` INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `rep_core_biometria_facial_new`
+                (num_matricula, cpf, nome, fl_ativo, atualizado_em, embedding_tablet,
+                 dt_cadastro_facial, dt_cadastro_confirmado, dt_reset_facial_aplicado,
+                 dt_remocao_confirmada, fl_isento)
+            SELECT num_matricula, cpf, nome, fl_ativo, atualizado_em, embedding_tablet,
+                 dt_cadastro_facial, dt_cadastro_confirmado, dt_reset_facial_aplicado,
+                 dt_remocao_confirmada, fl_isento
+            FROM `rep_core_biometria_facial`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `rep_core_biometria_facial`")
+        db.execSQL("ALTER TABLE `rep_core_biometria_facial_new` RENAME TO `rep_core_biometria_facial`")
+    }
+}

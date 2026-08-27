@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
+import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ data class ClockInUiState(
 
 class ClockInViewModel(
     private val deviceStatusChecker: DeviceStatusChecker,
+    private val colaboradorSyncRepository: ColaboradorSyncRepository,
     private val networkMonitor: NetworkMonitor,
     private val colaboradorDao: ColaboradorDao
 ) : ViewModel() {
@@ -31,10 +33,15 @@ class ClockInViewModel(
         // Enquanto a tela de ponto estiver aberta: reage a quedas/retomadas de rede
         // verificando o status na hora que a rede volta, e mantém um polling de 30s
         // enquanto estiver online — assim uma desativação é percebida quase na hora,
-        // sem depender só do heartbeat de 15min.
+        // sem depender só do heartbeat de 15min. A sincronização de colaboradores roda
+        // junto, sempre uma carga completa (ver ColaboradorSyncRepository.sincronizarTudo) —
+        // não depende de nenhum campo do backend indicar "mudou algo".
         viewModelScope.launch {
             networkMonitor.isOnline.collect { online ->
-                if (online) deviceStatusChecker.checkNow()
+                if (online) {
+                    deviceStatusChecker.checkNow()
+                    colaboradorSyncRepository.sincronizarTudo()
+                }
             }
         }
         viewModelScope.launch {
@@ -42,6 +49,7 @@ class ClockInViewModel(
                 delay(STATUS_POLL_INTERVAL_MS)
                 if (networkMonitor.isOnline.value) {
                     deviceStatusChecker.checkNow()
+                    colaboradorSyncRepository.sincronizarTudo()
                 }
             }
         }
@@ -66,6 +74,7 @@ class ClockInViewModel(
 
             when {
                 colaborador == null -> _uiState.update { it.copy(erro = "Matrícula não encontrada") }
+                colaborador.isento -> _uiState.update { it.copy(erro = "Usuário isento de registro de ponto.") }
                 !colaborador.ativo -> _uiState.update { it.copy(erro = "Colaborador inativo") }
                 colaborador.embeddingFacial != null -> aoReconhecerFacial(matricula)
                 else -> aoPrecisarConfirmarIdentidade(matricula)

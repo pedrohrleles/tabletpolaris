@@ -59,10 +59,10 @@ class DeviceCredentialsStore(context: Context) {
     }
 
     /**
-     * Limpa só a sessão/credenciais (token, ids, etc). Propositalmente NÃO mexe nas chaves de
-     * cache de colaboradores ([idEmpregadorColaboradoresCache]/[ultimaSincronizacaoColaboradores])
-     * — a decisão de preservar ou zerar esse cache só é tomada na próxima ativação, quando dá
-     * pra comparar a empresa nova com a que estava salva. Ver [salvarIdEmpregadorColaboradoresCache].
+     * Limpa só a sessão/credenciais (token, ids, etc). Propositalmente NÃO mexe na chave de
+     * cache de colaboradores ([idEmpregadorColaboradoresCache]) — a decisão de preservar ou
+     * zerar esse cache só é tomada na próxima ativação, quando dá pra comparar a empresa nova
+     * com a que estava salva. Ver [salvarIdEmpregadorColaboradoresCache].
      */
     fun clear() {
         prefs.edit()
@@ -74,15 +74,6 @@ class DeviceCredentialsStore(context: Context) {
             .remove(KEY_NOME_EMPREGADOR)
             .remove(KEY_TIMEZONE)
             .apply()
-    }
-
-    /** dt_sincronizacao da última carga (completa ou incremental) de colaboradores aplicada
-     *  com sucesso — comparado contra dt_cadastro_alterado do /status pra saber se precisa
-     *  sincronizar de novo. */
-    fun ultimaSincronizacaoColaboradores(): String? = prefs.getString(KEY_ULTIMA_SYNC_COLABORADORES, null)
-
-    fun salvarUltimaSincronizacaoColaboradores(dtSincronizacao: String) {
-        prefs.edit().putString(KEY_ULTIMA_SYNC_COLABORADORES, dtSincronizacao).apply()
     }
 
     /** A qual empresa pertence o cache local de colaboradores (embeddings inclusive)
@@ -100,8 +91,17 @@ class DeviceCredentialsStore(context: Context) {
     fun limparCacheColaboradores() {
         prefs.edit()
             .remove(KEY_ID_EMPREGADOR_COLABORADORES_CACHE)
-            .remove(KEY_ULTIMA_SYNC_COLABORADORES)
             .apply()
+    }
+
+    /** Último nr_sequencia_lote efetivamente usado num envio de marcações — persistido pra
+     *  garantir que o próximo valor seja sempre maior mesmo se o relógio do tablet regredir
+     *  (correção NTP, troca de fuso, RTC descarregado). Sem isso, "gerar outro timestamp" no
+     *  409 pode nunca produzir um valor maior que o último aceito, travando a sincronização. */
+    fun ultimaSequenciaLote(): Long? = prefs.getLong(KEY_ULTIMA_SEQUENCIA_LOTE, -1L).takeIf { it >= 0L }
+
+    fun salvarUltimaSequenciaLote(valor: Long) {
+        prefs.edit().putLong(KEY_ULTIMA_SEQUENCIA_LOTE, valor).apply()
     }
 
     private companion object {
@@ -113,7 +113,7 @@ class DeviceCredentialsStore(context: Context) {
         const val KEY_ID_ESTABELECIMENTO = "id_estabelecimento"
         const val KEY_NOME_EMPREGADOR = "nome_empregador"
         const val KEY_TIMEZONE = "timezone"
-        const val KEY_ULTIMA_SYNC_COLABORADORES = "ultima_sincronizacao_colaboradores"
         const val KEY_ID_EMPREGADOR_COLABORADORES_CACHE = "id_empregador_colaboradores_cache"
+        const val KEY_ULTIMA_SEQUENCIA_LOTE = "ultima_sequencia_lote"
     }
 }

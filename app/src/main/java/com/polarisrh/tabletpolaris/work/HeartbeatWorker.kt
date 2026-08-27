@@ -32,10 +32,11 @@ class HeartbeatWorker(
 
         val telemetry = DeviceTelemetryCollector(applicationContext).collect()
         val request = HeartbeatRequest(
-            // TODO: ligar à fila de sincronização real quando ela existir.
-            nrFilaPendente = 0,
+            nrFilaPendente = container.batidaDao.contarPendentes(),
             nrBateriaPct = telemetry.batteryPercent,
             flCarregando = telemetry.isCharging,
+            armazenamento = telemetry.armazenamento,
+            memRam = telemetry.memoriaRam,
             dsVersaoApp = BuildConfig.VERSION_NAME,
             dsAndroidId = DeviceIdentity.androidId(applicationContext),
             // Mesma limitação de plataforma da ativação — ver DeviceIdentity/nota na ativação.
@@ -58,6 +59,11 @@ class HeartbeatWorker(
                     container.deviceRevocationHandler.revoke(
                         "Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação."
                     )
+                } else {
+                    // Carga completa, incondicional — fecha a lacuna do heartbeat rodar com o
+                    // app fechado sem nunca puxar admissão/desligamento/reset facial novo, já
+                    // que o polling de 30s da tela só roda com o app aberto.
+                    container.colaboradorSyncRepository.sincronizarTudo()
                 }
                 Result.success()
             } else {

@@ -8,6 +8,7 @@ import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.DeviceIdentity
 import com.polarisrh.tabletpolaris.data.local.DeviceKeyManager
 import com.polarisrh.tabletpolaris.data.local.DeviceTelemetryCollector
+import com.polarisrh.tabletpolaris.data.local.db.BatidaDao
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiService
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.ErroResponse
@@ -29,6 +30,7 @@ class RemoteDeviceAuthRepository(
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
     private val colaboradorSyncRepository: ColaboradorSyncRepository,
+    private val batidaDao: BatidaDao,
     private val deviceKeyManager: DeviceKeyManager = DeviceKeyManager(),
     private val telemetryCollector: DeviceTelemetryCollector = DeviceTelemetryCollector(context)
 ) : DeviceAuthRepository {
@@ -54,8 +56,9 @@ class RemoteDeviceAuthRepository(
                 dtDispositivo = Instant.now().toString(),
                 nrBateriaPct = telemetry.batteryPercent,
                 flCarregando = telemetry.isCharging,
-                // TODO: ligar à fila de sincronização real quando ela existir.
-                nrFilaPendente = 0
+                nrFilaPendente = batidaDao.contarPendentes(),
+                armazenamento = telemetry.armazenamento,
+                memRam = telemetry.memoriaRam
             )
 
             val response = api.ativarTablet(request)

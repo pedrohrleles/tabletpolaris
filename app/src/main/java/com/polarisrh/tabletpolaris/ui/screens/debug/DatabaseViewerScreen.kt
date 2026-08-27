@@ -25,10 +25,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteDao
-import com.polarisrh.tabletpolaris.data.local.db.BatidaPendenteEntity
+import com.polarisrh.tabletpolaris.data.local.db.BatidaDao
+import com.polarisrh.tabletpolaris.data.local.db.BatidaEntity
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorEntity
+import com.polarisrh.tabletpolaris.data.local.db.StatusSincronizacao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoEntity
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
@@ -44,17 +45,17 @@ import com.polarisrh.tabletpolaris.ui.theme.PolarisSurfaceDark
 @Composable
 fun DatabaseViewerScreen(
     colaboradorDao: ColaboradorDao,
-    batidaPendenteDao: BatidaPendenteDao,
+    batidaDao: BatidaDao,
     tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     onBack: () -> Unit
 ) {
     var colaboradores by remember { mutableStateOf<List<ColaboradorEntity>>(emptyList()) }
-    var batidas by remember { mutableStateOf<List<BatidaPendenteEntity>>(emptyList()) }
+    var batidas by remember { mutableStateOf<List<BatidaEntity>>(emptyList()) }
     var tentativas by remember { mutableStateOf<List<TentativaReconhecimentoEntity>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         colaboradores = colaboradorDao.listarTodos()
-        batidas = batidaPendenteDao.listarPendentes()
+        batidas = batidaDao.listarTodas()
         tentativas = tentativaReconhecimentoDao.listarTodas()
     }
 
@@ -125,7 +126,7 @@ fun DatabaseViewerScreen(
 
             item {
                 Text(
-                    text = "batida_pendente (${batidas.size})",
+                    text = "batidas_sincronizadas (${batidas.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
@@ -135,12 +136,22 @@ fun DatabaseViewerScreen(
                 TabelaLinha {
                     Text(
                         text = "#${batida.id} — ${batida.matricula}",
-                        color = PolarisOnCard,
+                        color = when (batida.statusSincronizacao) {
+                            StatusSincronizacao.SINCRONIZADA -> PolarisSuccess
+                            StatusSincronizacao.REJEITADA -> PolarisError
+                            else -> PolarisMuted
+                        },
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
-                        text = "dtHora: ${batida.dtHora}",
+                        text = "status: ${batida.statusSincronizacao} · tentativas: ${batida.qtdTentativasSincronizacao}" +
+                            (batida.mensagemErroSincronizacao?.let { " · $it" } ?: ""),
+                        color = PolarisMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "dt_hr_marcacao: ${batida.dtHrMarcacao}",
                         color = PolarisMuted,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -149,7 +160,7 @@ fun DatabaseViewerScreen(
             if (batidas.isEmpty()) {
                 item {
                     Text(
-                        text = "Nenhuma batida pendente.",
+                        text = "Nenhuma batida registrada ainda.",
                         color = PolarisMuted,
                         style = MaterialTheme.typography.bodyMedium
                     )

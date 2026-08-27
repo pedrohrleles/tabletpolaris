@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,8 +38,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.data.repository.DeviceAuthRepository
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
+import com.polarisrh.tabletpolaris.ui.components.PolarisStripedCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlueDeep
-import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisDisabled
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnCard
@@ -81,13 +80,10 @@ fun DeviceSetupScreen(
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        Column(
+        PolarisStripedCard(
             modifier = Modifier
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .background(PolarisCard, RoundedCornerShape(32.dp))
-                .padding(horizontal = 48.dp, vertical = 56.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "Ativar Tablet",

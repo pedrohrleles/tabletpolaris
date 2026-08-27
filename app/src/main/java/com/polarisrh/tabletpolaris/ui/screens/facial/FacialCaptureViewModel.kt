@@ -215,6 +215,11 @@ class FacialCaptureViewModel(
         }
 
         colaboradorDao.salvarEmbedding(matricula, mediaNormalizada(embeddings).paraByteArray())
+        // Marca como pendente de aviso pro Polaris RH (POST facial-cadastrada) — sem isso, o
+        // colaborador continua vendo "Cadastre no Tablet" no painel web mesmo já tendo
+        // cadastrado aqui. Enviado na próxima sincronização (até 30s depois, com a tela de
+        // ponto aberta), não bloqueia esse fluxo.
+        colaboradorDao.marcarCadastroFacial(matricula, Instant.now().toString())
         // A barra na tela anima a transição de valor (não pula direto) — sem essa pausa, ela
         // saía do loop em ~75% e trocava pra tela de sucesso no MESMO instante em que
         // scanProgress virava 1f, sem tempo de a animação visual sequer começar a subir.
@@ -285,7 +290,7 @@ class FacialCaptureViewModel(
         }
         _uiState.update { it.copy(scanProgress = 0.97f) }
 
-        val result = punchRepository.registerPunch(matricula)
+        val result = punchRepository.registerPunch(matricula, similaridade, LIMIAR_RECONHECIMENTO_FACIAL)
         result.onSuccess { punchResult ->
             _uiState.update { it.copy(scanProgress = 1f) }
             delay(DURACAO_ANIMACAO_BARRA_MS)

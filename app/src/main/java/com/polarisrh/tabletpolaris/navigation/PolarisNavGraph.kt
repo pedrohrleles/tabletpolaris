@@ -23,7 +23,6 @@ import com.polarisrh.tabletpolaris.ui.screens.facial.ModoCaptura
 import com.polarisrh.tabletpolaris.ui.screens.setup.DeviceSetupScreen
 import com.polarisrh.tabletpolaris.ui.screens.splash.SplashScreen
 import com.polarisrh.tabletpolaris.ui.screens.success.PunchSuccessScreen
-import java.time.ZoneId
 
 object PolarisDestinations {
     const val SPLASH = "splash"
@@ -98,8 +97,10 @@ fun PolarisNavGraph(
             composable(PolarisDestinations.CLOCK_IN) {
                 ClockInScreen(
                     deviceStatusChecker = container.deviceStatusChecker,
+                    colaboradorSyncRepository = container.colaboradorSyncRepository,
                     networkMonitor = container.networkMonitor,
                     colaboradorDao = container.colaboradorDao,
+                    credentialsStore = container.credentialsStore,
                     onReconhecerFacial = { matricula ->
                         navController.navigate(PolarisDestinations.facialCapture(matricula))
                     },
@@ -121,7 +122,7 @@ fun PolarisNavGraph(
             composable(PolarisDestinations.DATABASE_VIEWER) {
                 DatabaseViewerScreen(
                     colaboradorDao = container.colaboradorDao,
-                    batidaPendenteDao = container.batidaPendenteDao,
+                    batidaDao = container.batidaDao,
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     onBack = { navController.popBackStack() }
                 )
@@ -157,17 +158,20 @@ fun PolarisNavGraph(
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
+                    audioPlayer = container.audioPlayer,
                     onPunchRegistered = { punchResult ->
-                        val timestampMillis = punchResult.timestamp
-                            .atZone(ZoneId.systemDefault())
-                            .toInstant()
-                            .toEpochMilli()
+                        val timestampMillis = punchResult.timestamp.toEpochMilli()
                         navController.navigate(PolarisDestinations.punchSuccess(matricula, timestampMillis)) {
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
                     onCadastroConcluido = {},
-                    onCancel = { navController.popBackStack() }
+                    onCancel = { navController.popBackStack() },
+                    onTimeout = {
+                        navController.navigate(PolarisDestinations.CLOCK_IN) {
+                            popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }
+                        }
+                    }
                 )
             }
 
@@ -186,6 +190,7 @@ fun PolarisNavGraph(
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
                     deviceStatusChecker = container.deviceStatusChecker,
                     networkMonitor = container.networkMonitor,
+                    audioPlayer = container.audioPlayer,
                     // Cadastro nunca bate ponto — só gera e salva o embedding.
                     onPunchRegistered = {},
                     onCadastroConcluido = {
@@ -195,7 +200,12 @@ fun PolarisNavGraph(
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
-                    onCancel = { navController.popBackStack() }
+                    onCancel = { navController.popBackStack() },
+                    onTimeout = {
+                        navController.navigate(PolarisDestinations.CLOCK_IN) {
+                            popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }
+                        }
+                    }
                 )
             }
 
@@ -211,6 +221,8 @@ fun PolarisNavGraph(
                 PunchSuccessScreen(
                     matricula = matricula,
                     timestampMillis = timestampMillis,
+                    audioPlayer = container.audioPlayer,
+                    credentialsStore = container.credentialsStore,
                     onTimeout = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }

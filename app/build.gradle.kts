@@ -19,7 +19,7 @@ android {
 
         // Backend Polaris RH rodando localmente na sua máquina (mesma rede Wi-Fi do tablet).
         // Trocar quando houver URL de produção ou voltar a testar contra o servidor de dev remoto.
-        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.5:3000/\"")
+        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.11:3000/\"")
     }
 
     buildTypes {
@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.security.crypto)
     implementation(libs.retrofit.core)

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,8 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
+import com.polarisrh.tabletpolaris.ui.components.PolarisStripedCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlueDeep
-import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnCard
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnPrimary
@@ -65,13 +64,10 @@ fun IdentityConfirmationScreen(
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        Column(
+        PolarisStripedCard(
             modifier = Modifier
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .background(PolarisCard, RoundedCornerShape(32.dp))
-                .padding(horizontal = 48.dp, vertical = 56.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val nomeAtual = nome
             if (nomeAtual == null) {
