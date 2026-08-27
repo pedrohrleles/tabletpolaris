@@ -41,7 +41,7 @@ fun PolarisStripedCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PolarisCard)
-                .padding(horizontal = 48.dp, vertical = 56.dp),
+                .padding(start = 48.dp, end = 48.dp, top = 28.dp, bottom = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             content = content
         )
