@@ -2,10 +2,13 @@ package com.polarisrh.tabletpolaris.ui.screens.facial
 
 import android.graphics.Bitmap
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,7 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,6 +58,7 @@ import com.polarisrh.tabletpolaris.facial.FaceEmbeddingExtractor
 import com.polarisrh.tabletpolaris.ui.components.AnimatedCheckmark
 import com.polarisrh.tabletpolaris.ui.components.FrontCameraPreview
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
+import com.polarisrh.tabletpolaris.ui.theme.PolarisBlue
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCameraPlaceholder
 import com.polarisrh.tabletpolaris.ui.theme.PolarisError
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
@@ -77,6 +84,16 @@ private const val TIMEOUT_INATIVIDADE_MS = 60_000L
  *  empurraria a área da câmera de tamanho. Conteúdo fica centralizado verticalmente dentro
  *  desse espaço fixo. Só o botão Cancelar mora aqui — status e erro aparecem sobre a câmera. */
 private val FooterHeight = 96.dp
+
+/** Cantos de "viewfinder" (estilo leitor de QR code) — puramente decorativo, não indica
+ *  nenhuma posição que o rosto precise ocupar (isso foi removido de propósito, ver histórico).
+ *  Só dá estrutura visual pra câmera não parecer um retângulo pelado. */
+private val InsetCantos = 28.dp
+private val TamanhoBracoCanto = 40.dp
+private val EspessuraTracoCanto = 4.dp
+
+/** Espessura da borda reativa ao status ao redor de toda a área da câmera. */
+private val EspessuraBordaStatus = 4.dp
 
 @Composable
 fun FacialCapturePlaceholderScreen(
@@ -253,19 +270,44 @@ fun FacialCapturePlaceholderScreen(
         }
 
         // Live front-camera feed com detecção facial (ML Kit) rodando a cada frame — só
-        // classifica presença de rosto (nenhum / mais de um / pronto). Câmera limpa, sem
-        // nenhum guia visual desenhado por cima.
+        // classifica presença de rosto (nenhum / mais de um / pronto). Sem guia de posição
+        // (removido de propósito), mas com dois elementos puramente decorativos: cantos de
+        // viewfinder (fixos) e uma borda que muda de cor com o status — dão estrutura visual
+        // sem indicar nenhuma posição que o rosto precise ocupar.
+        val corStatusCamera by animateColorAsState(
+            targetValue = when {
+                uiState.errorMessage != null -> PolarisError
+                uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> PolarisWarning
+                uiState.faceDetectionStatus == FaceDetectionStatus.Pronto -> PolarisSuccess
+                else -> PolarisBlue
+            },
+            animationSpec = tween(300),
+            label = "corStatusCamera"
+        )
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .clipToBounds()
                 .background(PolarisCameraPlaceholder)
+                .border(width = EspessuraBordaStatus, color = corStatusCamera)
         ) {
             FrontCameraPreview(
                 modifier = Modifier.fillMaxSize(),
                 onCapturaDisponivel = { capturarFrameBruto = it }
             )
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(InsetCantos)
+            ) {
+                desenharCantosViewfinder(
+                    color = PolarisOnPrimary.copy(alpha = 0.75f),
+                    tamanhoBraco = TamanhoBracoCanto.toPx(),
+                    espessuraTraco = EspessuraTracoCanto.toPx()
+                )
+            }
 
             val (statusMessage, statusColor) = when {
                 uiState.isScanning && isCadastro -> "Mantenha o rosto parado..." to PolarisSuccess
@@ -362,4 +404,28 @@ private fun scanColorFor(progress: Float): Color {
     } else {
         lerp(PolarisWarning, PolarisSuccess, (clamped - 0.5f) / 0.5f)
     }
+}
+
+/** Desenha um "L" decorativo em cada canto da área disponível — estética de viewfinder de
+ *  leitor de QR code. Puramente estático: não reage a rosto nenhum, não indica posição. */
+private fun DrawScope.desenharCantosViewfinder(
+    color: Color,
+    tamanhoBraco: Float,
+    espessuraTraco: Float
+) {
+    val w = size.width
+    val h = size.height
+
+    // Superior esquerdo
+    drawLine(color, Offset(0f, 0f), Offset(tamanhoBraco, 0f), espessuraTraco, StrokeCap.Round)
+    drawLine(color, Offset(0f, 0f), Offset(0f, tamanhoBraco), espessuraTraco, StrokeCap.Round)
+    // Superior direito
+    drawLine(color, Offset(w, 0f), Offset(w - tamanhoBraco, 0f), espessuraTraco, StrokeCap.Round)
+    drawLine(color, Offset(w, 0f), Offset(w, tamanhoBraco), espessuraTraco, StrokeCap.Round)
+    // Inferior esquerdo
+    drawLine(color, Offset(0f, h), Offset(tamanhoBraco, h), espessuraTraco, StrokeCap.Round)
+    drawLine(color, Offset(0f, h), Offset(0f, h - tamanhoBraco), espessuraTraco, StrokeCap.Round)
+    // Inferior direito
+    drawLine(color, Offset(w, h), Offset(w - tamanhoBraco, h), espessuraTraco, StrokeCap.Round)
+    drawLine(color, Offset(w, h), Offset(w, h - tamanhoBraco), espessuraTraco, StrokeCap.Round)
 }
