@@ -73,7 +73,24 @@ class DeviceCredentialsStore(context: Context) {
             .remove(KEY_ID_ESTABELECIMENTO)
             .remove(KEY_NOME_EMPREGADOR)
             .remove(KEY_TIMEZONE)
+            .remove(KEY_BLOQUEADO_DESATIVACAO)
             .apply()
+    }
+
+    /** Ver [com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler] — persistido (não
+     *  só em memória) porque o processo de esvaziar a fila e confirmar com o servidor pode
+     *  atravessar reboots. Capturado no INSTANTE em que a desativação é vista pela primeira
+     *  vez, nunca desfeito sozinho (só via [clear] ou [limparBloqueioPorDesativacao]). */
+    fun estaBloqueadoPorDesativacao(): Boolean = prefs.getBoolean(KEY_BLOQUEADO_DESATIVACAO, false)
+
+    fun marcarBloqueadoPorDesativacao() {
+        prefs.edit().putBoolean(KEY_BLOQUEADO_DESATIVACAO, true).apply()
+    }
+
+    /** Chamada isolada (fora do [clear] geral) numa ativação nova bem-sucedida — ver
+     *  [com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler.resetar]. */
+    fun limparBloqueioPorDesativacao() {
+        prefs.edit().remove(KEY_BLOQUEADO_DESATIVACAO).apply()
     }
 
     /** A qual empresa pertence o cache local de colaboradores (embeddings inclusive)
@@ -115,5 +132,6 @@ class DeviceCredentialsStore(context: Context) {
         const val KEY_TIMEZONE = "timezone"
         const val KEY_ID_EMPREGADOR_COLABORADORES_CACHE = "id_empregador_colaboradores_cache"
         const val KEY_ULTIMA_SEQUENCIA_LOTE = "ultima_sequencia_lote"
+        const val KEY_BLOQUEADO_DESATIVACAO = "bloqueado_desativacao"
     }
 }

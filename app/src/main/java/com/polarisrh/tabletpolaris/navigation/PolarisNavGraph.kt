@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -40,6 +41,19 @@ object PolarisDestinations {
     fun punchSuccess(matricula: String, timestampMillis: Long) = "punch_success/$matricula/$timestampMillis"
 }
 
+/**
+ * Um toque duplo (ou multi-touch) num botão que navega dispara o onClick mais de uma vez ANTES
+ * da transição do primeiro toque terminar e remover aquele botão da composição — cada chamada
+ * de navigate()/popBackStack() executa de verdade. Com popBackStack() isso já causou o back
+ * stack esvaziar por completo (ex.: Cancelar 2x rápido também removia a tela de Bater Ponto, já
+ * que ela ainda não tinha virado o destino "atual" de fato — o NavHost ficava sem destino
+ * nenhum pra renderizar, só o fundo escuro do Surface, sem nada clicável pra sair de lá). O
+ * destino atual só fica RESUMED depois que a transição em andamento assenta, então checar isso
+ * aqui filtra o toque duplicado sem precisar de nenhum debounce manual.
+ */
+private fun NavHostController.currentEntryIsResumed() =
+    currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED
+
 @Composable
 fun PolarisNavGraph(
     container: AppContainer,
@@ -65,6 +79,7 @@ fun PolarisNavGraph(
             composable(PolarisDestinations.SPLASH) {
                 SplashScreen(
                     deviceAuthRepository = container.deviceAuthRepository,
+                    desativacaoHandler = container.desativacaoHandler,
                     onDeviceProvisioned = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.SPLASH) { inclusive = true }
@@ -87,8 +102,10 @@ fun PolarisNavGraph(
                     deviceAuthRepository = container.deviceAuthRepository,
                     initialErrorMessage = pendingRevocationMessage,
                     onDeviceLinked = {
-                        navController.navigate(PolarisDestinations.CLOCK_IN) {
-                            popUpTo(PolarisDestinations.DEVICE_SETUP) { inclusive = true }
+                        if (navController.currentEntryIsResumed()) {
+                            navController.navigate(PolarisDestinations.CLOCK_IN) {
+                                popUpTo(PolarisDestinations.DEVICE_SETUP) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -101,19 +118,28 @@ fun PolarisNavGraph(
                     networkMonitor = container.networkMonitor,
                     colaboradorDao = container.colaboradorDao,
                     credentialsStore = container.credentialsStore,
+                    desativacaoHandler = container.desativacaoHandler,
                     onReconhecerFacial = { matricula ->
-                        navController.navigate(PolarisDestinations.facialCapture(matricula))
+                        if (navController.currentEntryIsResumed()) {
+                            navController.navigate(PolarisDestinations.facialCapture(matricula))
+                        }
                     },
                     onPrecisarConfirmarIdentidade = { matricula ->
-                        navController.navigate(PolarisDestinations.identityConfirmation(matricula))
+                        if (navController.currentEntryIsResumed()) {
+                            navController.navigate(PolarisDestinations.identityConfirmation(matricula))
+                        }
                     },
                     onAbrirBancoDeDados = {
-                        navController.navigate(PolarisDestinations.DATABASE_VIEWER)
+                        if (navController.currentEntryIsResumed()) {
+                            navController.navigate(PolarisDestinations.DATABASE_VIEWER)
+                        }
                     },
                     onSairAtivacao = {
-                        container.credentialsStore.clear()
-                        navController.navigate(PolarisDestinations.DEVICE_SETUP) {
-                            popUpTo(0) { inclusive = true }
+                        if (navController.currentEntryIsResumed()) {
+                            container.credentialsStore.clear()
+                            navController.navigate(PolarisDestinations.DEVICE_SETUP) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -124,7 +150,7 @@ fun PolarisNavGraph(
                     colaboradorDao = container.colaboradorDao,
                     batidaDao = container.batidaDao,
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
-                    onBack = { navController.popBackStack() }
+                    onBack = { if (navController.currentEntryIsResumed()) navController.popBackStack() }
                 )
             }
 
@@ -137,9 +163,11 @@ fun PolarisNavGraph(
                     matricula = matricula,
                     colaboradorDao = container.colaboradorDao,
                     onConfirmado = {
-                        navController.navigate(PolarisDestinations.facialEnrollment(matricula))
+                        if (navController.currentEntryIsResumed()) {
+                            navController.navigate(PolarisDestinations.facialEnrollment(matricula))
+                        }
                     },
-                    onNegado = { navController.popBackStack() }
+                    onNegado = { if (navController.currentEntryIsResumed()) navController.popBackStack() }
                 )
             }
 
@@ -166,7 +194,7 @@ fun PolarisNavGraph(
                         }
                     },
                     onCadastroConcluido = {},
-                    onCancel = { navController.popBackStack() },
+                    onCancel = { if (navController.currentEntryIsResumed()) navController.popBackStack() },
                     onTimeout = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }
@@ -200,7 +228,7 @@ fun PolarisNavGraph(
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },
-                    onCancel = { navController.popBackStack() },
+                    onCancel = { if (navController.currentEntryIsResumed()) navController.popBackStack() },
                     onTimeout = {
                         navController.navigate(PolarisDestinations.CLOCK_IN) {
                             popUpTo(PolarisDestinations.CLOCK_IN) { inclusive = true }

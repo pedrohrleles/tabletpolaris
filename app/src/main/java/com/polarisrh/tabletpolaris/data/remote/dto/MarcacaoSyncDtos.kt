@@ -26,11 +26,15 @@ data class MarcacaoDto(
  *  DeviceCredentialsStore.ultimaSequenciaLote) — protege contra o relógio do tablet regredir.
  *  [dtDispositivo] é o relógio do tablet no instante do POST (não de quando a fila foi
  *  montada) — mesmo valor que já mandamos no heartbeat; o backend usa pra detectar relógio
- *  dessincronizado (ver MarcacoesSyncErro400). */
+ *  dessincronizado (ver MarcacoesSyncErro400). [nrFilaPendente] é quanto vai sobrar na fila
+ *  local depois DESSE lote (assumindo sucesso) — mesmo campo/nome já usado na ativação e no
+ *  heartbeat. Sem isso aqui, o RH só descobre que a fila esvaziou no próximo heartbeat (até
+ *  15min depois), travando uma tentativa de desativação mesmo com o tablet já sincronizado. */
 @Serializable
 data class MarcacoesSyncRequest(
     @SerialName("nr_sequencia_lote") val nrSequenciaLote: Long,
     @SerialName("dt_dispositivo") val dtDispositivo: String,
+    @SerialName("nr_fila_pendente") val nrFilaPendente: Int,
     val marcacoes: List<MarcacaoDto>
 )
 
@@ -42,7 +46,10 @@ data class MarcacoesSyncResponse(
     @SerialName("nr_sequencia_lote") val nrSequenciaLote: Long? = null,
     val aceitas: List<MarcacaoAceitaDto> = emptyList(),
     val duplicadas: List<MarcacaoIdLocalDto> = emptyList(),
-    val rejeitadas: List<MarcacaoRejeitadaDto> = emptyList()
+    val rejeitadas: List<MarcacaoRejeitadaDto> = emptyList(),
+    // Não nulo = desativação em andamento (ver DesativacaoHandler) — pode vir mesmo numa
+    // resposta normal de envio de lote.
+    val desativacao: DesativacaoDto? = null
 )
 
 @Serializable

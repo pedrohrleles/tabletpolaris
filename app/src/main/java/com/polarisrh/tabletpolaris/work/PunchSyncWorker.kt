@@ -21,6 +21,10 @@ class PunchSyncWorker(
         val container = (applicationContext as PolarisApplication).container
         return try {
             container.punchSyncRepository.sincronizarPendentes()
+            // Sem efeito se não estivermos numa desativação em andamento — ver
+            // DesativacaoHandler. É aqui (depois de toda tentativa de drenagem, periódica ou
+            // imediata) que a gente detecta "fila já esvaziou" e fecha o ciclo com o servidor.
+            container.desativacaoHandler.tentarConcluirSeNecessario()
             Result.success()
         } catch (e: IOException) {
             Log.w(TAG, "Sync de batidas sem conexão, tentando de novo mais tarde: ${e.message}")

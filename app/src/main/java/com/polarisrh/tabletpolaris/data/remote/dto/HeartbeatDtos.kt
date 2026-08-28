@@ -38,5 +38,7 @@ data class HeartbeatRequest(
 @Serializable
 data class HeartbeatResponse(
     @SerialName("fl_ativo") val flAtivo: Boolean = true,
-    @SerialName("dt_cadastro_alterado") val dtCadastroAlterado: String? = null
+    @SerialName("dt_cadastro_alterado") val dtCadastroAlterado: String? = null,
+    // Não nulo = desativação em andamento (ver DesativacaoHandler).
+    val desativacao: DesativacaoDto? = null
 )

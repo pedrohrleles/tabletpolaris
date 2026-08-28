@@ -3,6 +3,9 @@ package com.polarisrh.tabletpolaris.data.remote
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.ColaboradoresSyncResponse
+import com.polarisrh.tabletpolaris.data.remote.dto.ConfirmarDesativacaoRequest
+import com.polarisrh.tabletpolaris.data.remote.dto.ConfirmarDesativacaoResponse
+import com.polarisrh.tabletpolaris.data.remote.dto.ConsultarDesativacaoResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialCadastradaRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialNotificacaoResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialRemovidaRequest
@@ -75,4 +78,20 @@ interface PolarisApiService {
         @Header("Authorization") bearerToken: String,
         @Body request: FacialRemovidaRequest
     ): Response<FacialNotificacaoResponse>
+
+    // Consultada uma vez no startup (antes de abrir a tela de ponto) — cobre reboot sem nunca
+    // ter recebido o aviso de desativação pelos outros três canais.
+    @GET("coletores/{idColetor}/desativacao")
+    suspend fun consultarDesativacao(
+        @Path("idColetor") idColetor: String,
+        @Header("Authorization") bearerToken: String
+    ): Response<ConsultarDesativacaoResponse>
+
+    // Só chamada quando a fila local já está confirmada vazia — ver DesativacaoHandler.
+    @POST("coletores/{idColetor}/desativacao/confirmar")
+    suspend fun confirmarDesativacao(
+        @Path("idColetor") idColetor: String,
+        @Header("Authorization") bearerToken: String,
+        @Body request: ConfirmarDesativacaoRequest = ConfirmarDesativacaoRequest()
+    ): Response<ConfirmarDesativacaoResponse>
 }

@@ -27,7 +27,8 @@ sealed interface DeviceStatusResult {
 class DeviceStatusChecker(
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
-    private val revocationHandler: DeviceRevocationHandler
+    private val revocationHandler: DeviceRevocationHandler,
+    private val desativacaoHandler: DesativacaoHandler
 ) {
     suspend fun checkNow(): DeviceStatusResult {
         val credentials = credentialsStore.read() ?: return DeviceStatusResult.Unknown
@@ -38,7 +39,15 @@ class DeviceStatusChecker(
                 bearerToken = "Bearer ${credentials.token}"
             )
             when {
-                response.isSuccessful -> DeviceStatusResult.Active
+                response.isSuccessful -> {
+                    desativacaoHandler.processar(response.body()?.desativacao)
+                    DeviceStatusResult.Active
+                }
+                // Escopo mais estreito desde a desativação com drenagem (ver DesativacaoHandler):
+                // token inválido, coletor desativado antes dessa mudança, ou drenagem já
+                // concluída (POST /desativacao/confirmar já fechou o ciclo). O caso "desativado
+                // com fila por enviar" agora vem 200 + bloco `desativacao`, não mais 401 direto.
+                // Mantido como rede de segurança, por instrução do próprio backend.
                 response.code() == 401 -> {
                     Log.w(TAG, "Coletor desativado remotamente — desvinculando.")
                     revocationHandler.revoke("Este tablet foi desativado remotamente pelo suporte. Insira um novo código de ativação.")
