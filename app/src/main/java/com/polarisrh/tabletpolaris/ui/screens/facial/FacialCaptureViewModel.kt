@@ -5,12 +5,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
-import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoEntity
-import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
-import com.polarisrh.tabletpolaris.data.repository.DeviceStatusResult
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
 import com.polarisrh.tabletpolaris.facial.FaceDetectionStatus
@@ -80,9 +77,7 @@ class FacialCaptureViewModel(
     private val colaboradorDao: ColaboradorDao,
     private val tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     private val credentialsStore: DeviceCredentialsStore,
-    private val faceEmbeddingExtractor: FaceEmbeddingExtractor,
-    private val deviceStatusChecker: DeviceStatusChecker,
-    private val networkMonitor: NetworkMonitor
+    private val faceEmbeddingExtractor: FaceEmbeddingExtractor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FacialCaptureUiState())
@@ -272,18 +267,12 @@ class FacialCaptureViewModel(
             return
         }
 
-        // Se online, confirma que o dispositivo ainda está autorizado antes de registrar a
-        // batida — se foi desativado nesse meio-tempo, a navegação global já vai redirecionar
-        // pra tela de ativação assim que o status revogado for detectado, então só aborta
-        // aqui em vez de seguir registrando. Offline, segue direto (registra normalmente).
-        if (networkMonitor.isOnline.value) {
-            _uiState.update { it.copy(scanProgress = 0.93f) }
-            val status = deviceStatusChecker.checkNow()
-            if (status == DeviceStatusResult.Revoked) {
-                _uiState.update { it.copy(isScanning = false, scanProgress = 0f) }
-                return
-            }
-        }
+        // Não confirma o status do dispositivo aqui — chegou a fazer uma chamada de rede
+        // síncrona antes de registrar, mas isso travava a barra de progresso por ~2s toda vez
+        // que estava online (offline pulava direto). Uma revogação recente já é pega pelo
+        // polling de 30s da tela de ponto, pelo heartbeat de 15min, ou pela flag local de
+        // desativação dentro do próprio registerPunch — não vale travar a UI pra fechar essa
+        // janela de poucos segundos que o resto do app já tolera.
         _uiState.update { it.copy(scanProgress = 0.97f) }
 
         val result = punchRepository.registerPunch(matricula, similaridade, LIMIAR_RECONHECIMENTO_FACIAL)

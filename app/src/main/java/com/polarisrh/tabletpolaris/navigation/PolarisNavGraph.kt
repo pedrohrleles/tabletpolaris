@@ -184,8 +184,6 @@ fun PolarisNavGraph(
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     credentialsStore = container.credentialsStore,
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
-                    deviceStatusChecker = container.deviceStatusChecker,
-                    networkMonitor = container.networkMonitor,
                     audioPlayer = container.audioPlayer,
                     onPunchRegistered = { punchResult ->
                         val timestampMillis = punchResult.timestamp.toEpochMilli()
@@ -216,8 +214,6 @@ fun PolarisNavGraph(
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     credentialsStore = container.credentialsStore,
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
-                    deviceStatusChecker = container.deviceStatusChecker,
-                    networkMonitor = container.networkMonitor,
                     audioPlayer = container.audioPlayer,
                     // Cadastro nunca bate ponto — só gera e salva o embedding.
                     onPunchRegistered = {},

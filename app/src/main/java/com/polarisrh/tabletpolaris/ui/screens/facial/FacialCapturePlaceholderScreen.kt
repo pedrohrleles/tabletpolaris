@@ -47,10 +47,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.audio.PolarisAudioPlayer
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
-import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
-import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
 import com.polarisrh.tabletpolaris.facial.FaceDetectionStatus
@@ -105,8 +103,6 @@ fun FacialCapturePlaceholderScreen(
     tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     credentialsStore: DeviceCredentialsStore,
     faceEmbeddingExtractor: FaceEmbeddingExtractor,
-    deviceStatusChecker: DeviceStatusChecker,
-    networkMonitor: NetworkMonitor,
     audioPlayer: PolarisAudioPlayer,
     onPunchRegistered: (PunchResult) -> Unit,
     onCadastroConcluido: () -> Unit,
@@ -123,9 +119,7 @@ fun FacialCapturePlaceholderScreen(
                     colaboradorDao,
                     tentativaReconhecimentoDao,
                     credentialsStore,
-                    faceEmbeddingExtractor,
-                    deviceStatusChecker,
-                    networkMonitor
+                    faceEmbeddingExtractor
                 )
             }
         }

@@ -98,7 +98,12 @@ class ColaboradorSyncRepository(
             matriculasRecebidas += ativos.map { it.matricula }
             matriculasRecebidas += isentos.map { it.matricula }
 
-            val entidades = (ativos + isentos).map { dto -> paraEntidade(dto) }
+            // Uma única query pra página inteira, em vez de uma consulta por colaborador
+            // (evita competir com leituras da tela de Bater Ponto no meio da sincronização).
+            val existentesDaPagina = colaboradorDao
+                .buscarPorMatriculas((ativos + isentos).map { it.matricula })
+                .associateBy { it.matricula }
+            val entidades = (ativos + isentos).map { dto -> paraEntidade(dto, existentesDaPagina[dto.matricula]) }
             colaboradorDao.upsertAll(entidades)
             desligados.forEach { dto -> colaboradorDao.removerPorMatricula(dto.matricula) }
 
@@ -117,9 +122,10 @@ class ColaboradorSyncRepository(
         confirmarRemocoesPendentes()
     }
 
-    /** Monta a entidade local a partir do DTO — comum a colaboradores normais e isentos. */
-    private suspend fun paraEntidade(dto: ColaboradorDto): ColaboradorEntity {
-        val existente = colaboradorDao.buscarPorMatricula(dto.matricula)
+    /** Monta a entidade local a partir do DTO — comum a colaboradores normais e isentos.
+     *  [existente] vem de uma busca em lote feita antes, pra página inteira (ver
+     *  sincronizarTudo) — evita uma consulta ao banco por colaborador. */
+    private fun paraEntidade(dto: ColaboradorDto, existente: ColaboradorEntity?): ColaboradorEntity {
         // Regra do backend: um reset só se aplica se for POSTERIOR ao cadastro local atual
         // (evita que um pedido de reset antigo apague um cadastro mais novo) — e só faz
         // sentido se já existir embedding pra remover (senão um dt_reset_facial "perdido" pra

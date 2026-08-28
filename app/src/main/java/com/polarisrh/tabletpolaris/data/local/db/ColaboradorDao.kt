@@ -14,6 +14,11 @@ interface ColaboradorDao {
     @Query("SELECT * FROM rep_core_biometria_facial WHERE num_matricula = :matricula")
     suspend fun buscarPorMatricula(matricula: String): ColaboradorEntity?
 
+    /** Usado na sincronização do roster pra evitar N consultas sequenciais (uma por
+     *  colaborador) — busca o estado local de uma página inteira numa única query. */
+    @Query("SELECT * FROM rep_core_biometria_facial WHERE num_matricula IN (:matriculas)")
+    suspend fun buscarPorMatriculas(matriculas: List<String>): List<ColaboradorEntity>
+
     @Query("SELECT * FROM rep_core_biometria_facial ORDER BY num_matricula ASC")
     suspend fun listarTodos(): List<ColaboradorEntity>
 
