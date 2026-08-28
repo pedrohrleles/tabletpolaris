@@ -330,15 +330,6 @@ class FacialCaptureViewModel(
         return FloatArray(tamanho) { i -> soma[i] / norma }
     }
 
-    /** Menu de debug temporário — remove o embedding cadastrado, forçando o recadastro na
-     *  próxima vez que essa matrícula for digitada. */
-    fun removerFacial(aoRemover: () -> Unit) {
-        viewModelScope.launch {
-            colaboradorDao.removerEmbedding(matricula)
-            aoRemover()
-        }
-    }
-
     private companion object {
         const val TAG = "FacialCapture"
     }

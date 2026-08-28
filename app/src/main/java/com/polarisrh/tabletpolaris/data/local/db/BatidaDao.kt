@@ -18,10 +18,6 @@ interface BatidaDao {
     @Query("SELECT COUNT(*) FROM batidas_sincronizadas WHERE status_sincronizacao = 'PENDENTE'")
     suspend fun contarPendentes(): Int
 
-    /** Histórico completo (qualquer status) — usado na tela de debug. */
-    @Query("SELECT * FROM batidas_sincronizadas ORDER BY dt_hr_marcacao DESC")
-    suspend fun listarTodas(): List<BatidaEntity>
-
     @Query(
         """
         UPDATE batidas_sincronizadas
