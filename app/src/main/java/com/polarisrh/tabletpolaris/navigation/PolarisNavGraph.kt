@@ -18,7 +18,6 @@ import androidx.navigation.navArgument
 import com.polarisrh.tabletpolaris.AppContainer
 import com.polarisrh.tabletpolaris.ui.screens.clockin.ClockInScreen
 import com.polarisrh.tabletpolaris.ui.screens.confirm.IdentityConfirmationScreen
-import com.polarisrh.tabletpolaris.ui.screens.debug.DatabaseViewerScreen
 import com.polarisrh.tabletpolaris.ui.screens.facial.FacialCapturePlaceholderScreen
 import com.polarisrh.tabletpolaris.ui.screens.facial.ModoCaptura
 import com.polarisrh.tabletpolaris.ui.screens.setup.DeviceSetupScreen
@@ -33,7 +32,6 @@ object PolarisDestinations {
     const val FACIAL_CAPTURE = "facial_capture/{matricula}"
     const val FACIAL_ENROLLMENT = "cadastro_facial/{matricula}"
     const val PUNCH_SUCCESS = "punch_success/{matricula}/{timestamp}"
-    const val DATABASE_VIEWER = "database_viewer"
 
     fun identityConfirmation(matricula: String) = "confirmar_identidade/$matricula"
     fun facialCapture(matricula: String) = "facial_capture/$matricula"
@@ -128,29 +126,7 @@ fun PolarisNavGraph(
                         if (navController.currentEntryIsResumed()) {
                             navController.navigate(PolarisDestinations.identityConfirmation(matricula))
                         }
-                    },
-                    onAbrirBancoDeDados = {
-                        if (navController.currentEntryIsResumed()) {
-                            navController.navigate(PolarisDestinations.DATABASE_VIEWER)
-                        }
-                    },
-                    onSairAtivacao = {
-                        if (navController.currentEntryIsResumed()) {
-                            container.credentialsStore.clear()
-                            navController.navigate(PolarisDestinations.DEVICE_SETUP) {
-                                popUpTo(0) { inclusive = true }
-                            }
-                        }
                     }
-                )
-            }
-
-            composable(PolarisDestinations.DATABASE_VIEWER) {
-                DatabaseViewerScreen(
-                    colaboradorDao = container.colaboradorDao,
-                    batidaDao = container.batidaDao,
-                    tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
-                    onBack = { if (navController.currentEntryIsResumed()) navController.popBackStack() }
                 )
             }
 
@@ -184,8 +160,6 @@ fun PolarisNavGraph(
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     credentialsStore = container.credentialsStore,
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
-                    deviceStatusChecker = container.deviceStatusChecker,
-                    networkMonitor = container.networkMonitor,
                     audioPlayer = container.audioPlayer,
                     onPunchRegistered = { punchResult ->
                         val timestampMillis = punchResult.timestamp.toEpochMilli()
@@ -216,8 +190,6 @@ fun PolarisNavGraph(
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
                     credentialsStore = container.credentialsStore,
                     faceEmbeddingExtractor = container.faceEmbeddingExtractor,
-                    deviceStatusChecker = container.deviceStatusChecker,
-                    networkMonitor = container.networkMonitor,
                     audioPlayer = container.audioPlayer,
                     // Cadastro nunca bate ponto — só gera e salva o embedding.
                     onPunchRegistered = {},

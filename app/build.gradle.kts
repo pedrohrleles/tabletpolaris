@@ -16,10 +16,28 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+    }
 
-        // Backend Polaris RH rodando localmente na sua máquina (mesma rede Wi-Fi do tablet).
-        // Trocar quando houver URL de produção ou voltar a testar contra o servidor de dev remoto.
-        buildConfigField("String", "POLARIS_API_BASE_URL", "\"http://192.168.1.11:3000/\"")
+    // Cada tablet físico é instalado com uma variante travada num ambiente — nunca escolhido em
+    // tempo de execução. "dev" fala com o servidor de homologação; "prod" com o servidor real.
+    // Confirmado com o time do web: mesmos caminhos de endpoint nos dois, só muda o domínio, e
+    // toda URL precisa terminar com "/" (o nginx redireciona 308 sem a barra, e nem todo client
+    // HTTP segue redirect em POST automaticamente).
+    flavorDimensions += "ambiente"
+    productFlavors {
+        create("dev") {
+            dimension = "ambiente"
+            applicationIdSuffix = ".dev"
+            buildConfigField("String", "POLARIS_API_BASE_URL", "\"https://dev.polarisrh.com.br/api/\"")
+        }
+        create("prod") {
+            dimension = "ambiente"
+            // ATENÇÃO: confirmado com o time do web que esse domínio ainda não está no ar (404
+            // em toda rota de coletor até 28/08/2026) — não instalar essa variante em tablet
+            // nenhum antes de confirmarem que voltou 401/400 (rota existindo), igual já está na
+            // dev. Configurado aqui só pra já deixar pronto.
+            buildConfigField("String", "POLARIS_API_BASE_URL", "\"https://app.polarisrh.com.br/api/\"")
+        }
     }
 
     buildTypes {

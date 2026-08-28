@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sobrescreve o nome padrão só na variante dev — deixa óbvio, na tela inicial do tablet,
+         que esse aparelho fala com o servidor de homologação, não com o de produção. -->
+    <string name="app_name">Polaris Ponto (DEV)</string>
+</resources>

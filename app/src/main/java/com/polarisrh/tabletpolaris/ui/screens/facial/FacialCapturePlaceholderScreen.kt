@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,10 +46,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.polarisrh.tabletpolaris.audio.PolarisAudioPlayer
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
-import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
-import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchResult
 import com.polarisrh.tabletpolaris.facial.FaceDetectionStatus
@@ -105,8 +102,6 @@ fun FacialCapturePlaceholderScreen(
     tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     credentialsStore: DeviceCredentialsStore,
     faceEmbeddingExtractor: FaceEmbeddingExtractor,
-    deviceStatusChecker: DeviceStatusChecker,
-    networkMonitor: NetworkMonitor,
     audioPlayer: PolarisAudioPlayer,
     onPunchRegistered: (PunchResult) -> Unit,
     onCadastroConcluido: () -> Unit,
@@ -123,16 +118,13 @@ fun FacialCapturePlaceholderScreen(
                     colaboradorDao,
                     tentativaReconhecimentoDao,
                     credentialsStore,
-                    faceEmbeddingExtractor,
-                    deviceStatusChecker,
-                    networkMonitor
+                    faceEmbeddingExtractor
                 )
             }
         }
     )
     val uiState by viewModel.uiState.collectAsState()
     val isCadastro = modo == ModoCaptura.CADASTRO
-    var showMenuDebug by remember { mutableStateOf(false) }
     var nomeColaborador by remember { mutableStateOf<String?>(null) }
     var capturarFrameBruto by remember { mutableStateOf<(() -> Bitmap?)?>(null) }
 
@@ -219,32 +211,7 @@ fun FacialCapturePlaceholderScreen(
                     color = PolarisMuted
                 )
             }
-            // Menu temporário de debug — só no reconhecimento, remove quando não precisar mais.
-            PolarisLogoMark(
-                size = 64.dp,
-                modifier = if (isCadastro) Modifier else Modifier.clickable { showMenuDebug = true }
-            )
-        }
-
-        if (showMenuDebug) {
-            AlertDialog(
-                onDismissRequest = { showMenuDebug = false },
-                title = { Text("Remover facial (debug)") },
-                text = { Text("Remover o cadastro facial da matrícula $matricula? Ela vai precisar se recadastrar.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showMenuDebug = false
-                        viewModel.removerFacial(aoRemover = onCancel)
-                    }) {
-                        Text("Sim")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showMenuDebug = false }) {
-                        Text("Não")
-                    }
-                }
-            )
+            PolarisLogoMark(size = 64.dp)
         }
 
         // A barra acompanha o progresso real do pipeline (captura → embedding → checagem →

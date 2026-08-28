@@ -22,13 +22,16 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
+// Toda rota abaixo termina com "/" de propósito — o nginx do backend redireciona (308) qualquer
+// chamada sem barra final pra mesma URL com barra, e isso só funciona de graça se o client HTTP
+// seguir redirect automaticamente em POST (nem todo cliente faz isso por padrão). Confirmado com
+// o time do web: caminhos idênticos entre dev/prod, só o domínio (ver POLARIS_API_BASE_URL) muda.
 interface PolarisApiService {
 
-    @POST("coletores/ativar")
+    @POST("coletores/ativar/")
     suspend fun ativarTablet(@Body request: AtivarTabletRequest): Response<AtivarTabletResponse>
 
-    // Contrato provisório — ajustar assim que o backend confirmar o endpoint real de heartbeat.
-    @POST("coletores/{idColetor}/heartbeat")
+    @POST("coletores/{idColetor}/heartbeat/")
     suspend fun enviarHeartbeat(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String,
@@ -37,14 +40,14 @@ interface PolarisApiService {
 
     // 200 = segue ativo/vinculado; 401 = desativado pelo RH (corpo do erro nesse caso é
     // ErroResponse, não StatusResponse).
-    @GET("coletores/{idColetor}/status")
+    @GET("coletores/{idColetor}/status/")
     suspend fun consultarStatus(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String
     ): Response<StatusResponse>
 
     // Paginado — segue chamando com cursor = proximo_cursor da resposta anterior até vir null.
-    @GET("coletores/{idColetor}/colaboradores")
+    @GET("coletores/{idColetor}/colaboradores/")
     suspend fun listarColaboradores(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String,
@@ -55,7 +58,7 @@ interface PolarisApiService {
 
     // 201 = lote aceito (ecoa nr_sequencia_lote); 409 = sequência desalinhada (corpo do erro
     // nesse caso é MarcacoesSyncErrorResponse, com nr_ultima_sequencia_aceita).
-    @POST("rep-p/dispositivos/marcacoes")
+    @POST("rep-p/dispositivos/marcacoes/")
     suspend fun enviarMarcacoes(
         @Header("Authorization") bearerToken: String,
         @Body request: MarcacoesSyncRequest
@@ -63,7 +66,7 @@ interface PolarisApiService {
 
     // Avisa que uma facial foi cadastrada localmente — é o que faz o colaborador ver "Facial
     // Cadastrada" (com botão de remover) no painel web em vez de "Cadastre no Tablet".
-    @POST("coletores/{idColetor}/facial-cadastrada")
+    @POST("coletores/{idColetor}/facial-cadastrada/")
     suspend fun confirmarFacialCadastrada(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String,
@@ -72,7 +75,7 @@ interface PolarisApiService {
 
     // Confirma que a facial foi de fato apagada localmente (a partir de um dt_reset_facial) —
     // é o que faz o colaborador ver "Facial Removida" no painel web.
-    @POST("coletores/{idColetor}/facial-removida")
+    @POST("coletores/{idColetor}/facial-removida/")
     suspend fun confirmarFacialRemovida(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String,
@@ -81,14 +84,14 @@ interface PolarisApiService {
 
     // Consultada uma vez no startup (antes de abrir a tela de ponto) — cobre reboot sem nunca
     // ter recebido o aviso de desativação pelos outros três canais.
-    @GET("coletores/{idColetor}/desativacao")
+    @GET("coletores/{idColetor}/desativacao/")
     suspend fun consultarDesativacao(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String
     ): Response<ConsultarDesativacaoResponse>
 
     // Só chamada quando a fila local já está confirmada vazia — ver DesativacaoHandler.
-    @POST("coletores/{idColetor}/desativacao/confirmar")
+    @POST("coletores/{idColetor}/desativacao/confirmar/")
     suspend fun confirmarDesativacao(
         @Path("idColetor") idColetor: String,
         @Header("Authorization") bearerToken: String,

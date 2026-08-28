@@ -12,7 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,12 +26,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -81,9 +78,7 @@ fun ClockInScreen(
     credentialsStore: DeviceCredentialsStore,
     desativacaoHandler: DesativacaoHandler,
     onReconhecerFacial: (String) -> Unit,
-    onPrecisarConfirmarIdentidade: (String) -> Unit,
-    onAbrirBancoDeDados: () -> Unit,
-    onSairAtivacao: () -> Unit
+    onPrecisarConfirmarIdentidade: (String) -> Unit
 ) {
     val viewModel: ClockInViewModel = viewModel(
         factory = viewModelFactory {
@@ -93,7 +88,6 @@ fun ClockInScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var matricula by remember { mutableStateOf("") }
-    var showMenuDebug by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Cabeçalho: logo no canto + relógio como tipografia limpa, sem card/borda (o visual
@@ -115,42 +109,15 @@ fun ClockInScreen(
                 modifier = Modifier.align(Alignment.Center)
             )
 
-            // Menu temporário de debug — remover quando não for mais necessário. CenterEnd (não
-            // TopEnd) pra ficar alinhado verticalmente com o bloco de duas linhas do relógio ao
-            // lado, não só grudado no topo da caixa.
+            // CenterEnd (não TopEnd) pra ficar alinhado verticalmente com o bloco de duas linhas
+            // do relógio ao lado, não só grudado no topo da caixa.
             PolarisLogoMark(
                 size = 56.dp,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .clickable { showMenuDebug = true }
+                modifier = Modifier.align(Alignment.CenterEnd)
             )
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        if (showMenuDebug) {
-            AlertDialog(
-                onDismissRequest = { showMenuDebug = false },
-                title = { Text("Menu de debug") },
-                text = { Text("Ferramentas temporárias — serão removidas depois.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showMenuDebug = false
-                        onAbrirBancoDeDados()
-                    }) {
-                        Text("Banco de Dados")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showMenuDebug = false
-                        onSairAtivacao()
-                    }) {
-                        Text("Sair (Ativação)")
-                    }
-                }
-            )
-        }
 
         // Corpo: tudo que envolve bater o ponto forma UM bloco só. Alinhado ao TOPO (não mais
         // centralizado no espaço todo) com um respiro pequeno — centralizar deixava um vão

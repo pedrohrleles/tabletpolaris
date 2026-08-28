@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <!-- Servidor de desenvolvimento da Polaris RH ainda não tem HTTPS. Trocar/remover
-         esta exceção assim que houver uma URL de produção com certificado válido. -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">52.73.245.229</domain>
-        <domain includeSubdomains="false">192.168.1.11</domain>
-    </domain-config>
-</network-security-config>
