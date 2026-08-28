@@ -17,6 +17,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         enterKioskImmersiveMode()
+        iniciarFixacaoDeTela()
 
         val container = (application as PolarisApplication).container
 
@@ -31,6 +32,11 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             enterKioskImmersiveMode()
+            // Reabrir o app (Android manteve o processo vivo em segundo plano depois de um
+            // desafixe) só chama onResume/aqui, nunca onCreate de novo — sem isso, só a
+            // primeira abertura do processo ficava fixada, e sair uma vez "destravava" pro
+            // resto da sessão.
+            iniciarFixacaoDeTela()
         }
     }
 
@@ -44,5 +50,17 @@ class MainActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+    }
+
+    /**
+     * Fixa a tela sozinho, sem precisar que alguém abra "Apps recentes" e escolha "Fixar" na
+     * mão — decisão do time: sem PIN de desafixar (exige senha de tela no aparelho, que também
+     * passaria a ser pedida em todo reinício, deixando quem bate ponto refém de alguém saber a
+     * senha). Sem PIN, "Voltar + Apps recentes" ainda desafixa — aceito de propósito: essa trava
+     * é só pra não sobrar na tela do Android por acidente, não pra barrar alguém decidido a sair.
+     * Precisa da opção "Fixar app" ativada nas configurações do tablet (uma vez, na ativação).
+     */
+    private fun iniciarFixacaoDeTela() {
+        startLockTask()
     }
 }
