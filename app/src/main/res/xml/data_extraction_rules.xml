@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
+    <!-- Banco Room (polaris.db) guarda embedding facial dos colaboradores — nunca deve sair do
+         tablet por nenhum caminho, incluindo o backup automático do Android (conta Google
+         pessoal) ou o assistente de transferência pra um aparelho novo. -->
     <cloud-backup>
+        <exclude domain="database" />
     </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" />
+    </device-transfer>
 </data-extraction-rules>

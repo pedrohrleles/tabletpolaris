@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
+import com.polarisrh.tabletpolaris.data.local.EmbeddingCipher
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoEntity
@@ -77,7 +78,8 @@ class FacialCaptureViewModel(
     private val colaboradorDao: ColaboradorDao,
     private val tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     private val credentialsStore: DeviceCredentialsStore,
-    private val faceEmbeddingExtractor: FaceEmbeddingExtractor
+    private val faceEmbeddingExtractor: FaceEmbeddingExtractor,
+    private val embeddingCipher: EmbeddingCipher = EmbeddingCipher()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FacialCaptureUiState())
@@ -205,7 +207,7 @@ class FacialCaptureViewModel(
             return
         }
 
-        colaboradorDao.salvarEmbedding(matricula, mediaNormalizada(embeddings).paraByteArray())
+        colaboradorDao.salvarEmbedding(matricula, embeddingCipher.encrypt(mediaNormalizada(embeddings).paraByteArray()))
         // Marca como pendente de aviso pro Polaris RH (POST facial-cadastrada) — sem isso, o
         // colaborador continua vendo "Cadastre no Tablet" no painel web mesmo já tendo
         // cadastrado aqui. Enviado na próxima sincronização (até 30s depois, com a tela de
@@ -246,7 +248,18 @@ class FacialCaptureViewModel(
         val embedding = mediaNormalizada(embeddings)
         _uiState.update { it.copy(scanProgress = 0.9f) }
 
-        val embeddingSalvo = colaboradorDao.buscarEmbedding(matricula)?.paraFloatArray()
+        val embeddingSalvo = colaboradorDao.buscarEmbedding(matricula)?.let {
+            try {
+                embeddingCipher.decrypt(it).paraFloatArray()
+            } catch (e: Exception) {
+                // Bytes que não decriptam com a chave atual (ex.: embedding salvo antes da
+                // criptografia entrar, ou chave do Keystore perdida/trocada) — trata como
+                // ausente em vez de propagar a exceção, mesma lógica do tamanho inesperado
+                // abaixo: força um recadastro em vez de travar o reconhecimento.
+                Log.w(TAG, "Falha ao decriptar embedding salvo pra matrícula=$matricula — recadastro necessário.", e)
+                null
+            }
+        }
         val similaridade = if (embeddingSalvo != null && embeddingSalvo.size == embedding.size) {
             similaridadeCosseno(embedding, embeddingSalvo)
         } else {

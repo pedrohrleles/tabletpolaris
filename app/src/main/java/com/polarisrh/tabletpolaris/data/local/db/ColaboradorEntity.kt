@@ -21,6 +21,9 @@ data class ColaboradorEntity(
     val nome: String,
     @ColumnInfo(name = "fl_ativo") val ativo: Boolean,
     @ColumnInfo(name = "atualizado_em") val atualizadoEm: String,
+    /** Sempre criptografado (ver [com.polarisrh.tabletpolaris.data.local.EmbeddingCipher]) —
+     *  nunca é o vetor cru do MobileFaceNet. Ler este campo direto (fora do fluxo já existente
+     *  em FacialCaptureViewModel) exige decriptar antes de tratar como FloatArray. */
     @ColumnInfo(name = "embedding_tablet") val embeddingFacial: ByteArray? = null,
     /** Quando o cadastro facial ATUAL foi feito neste tablet (null = sem facial cadastrada).
      *  É a referência que o backend usa: um dt_reset_facial só é aplicado se for posterior a
