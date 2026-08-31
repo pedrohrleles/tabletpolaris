@@ -10,6 +10,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import android.app.Activity
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,8 +29,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,6 +64,8 @@ import com.polarisrh.tabletpolaris.ui.components.pressScale
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlueDeep
 import com.polarisrh.tabletpolaris.ui.theme.PolarisError
 import com.polarisrh.tabletpolaris.ui.theme.PolarisMuted
+import com.polarisrh.tabletpolaris.ui.theme.PolarisOnPrimary
+import com.polarisrh.tabletpolaris.ui.theme.PolarisSuccess
 import kotlinx.coroutines.delay
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -108,6 +118,36 @@ fun ClockInScreen(
                 mensagemDesativado = uiState.mensagemDesativado,
                 modifier = Modifier.align(Alignment.Center)
             )
+
+            // Painel nativo de Wi-Fi (Settings.Panel.ACTION_WIFI). Sem Device Owner, o Android
+            // bloqueia QUALQUER app de fora aparecer enquanto o nosso está fixado — nem o painel
+            // "leve" escapa dessa regra. Então desafixamos programaticamente antes de abrir (sem
+            // exigir o gesto manual de quem está usando) e a tela se refixa sozinha ao voltar,
+            // graças ao startLockTask() já disparado em onWindowFocusChanged. Mostra só
+            // conectado/desconectado (não o nome da rede) — mostrar o SSID exigiria permissão de
+            // localização, desproporcional pra um app de bater ponto.
+            val activity = LocalContext.current as Activity
+            val online by networkMonitor.isOnline.collectAsState()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                IconButton(onClick = {
+                    activity.stopLockTask()
+                    activity.startActivity(Intent(Settings.Panel.ACTION_WIFI))
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.Wifi,
+                        contentDescription = "Configurar Wi-Fi",
+                        tint = PolarisOnPrimary
+                    )
+                }
+                Text(
+                    text = if (online) "Conectado" else "Desconectado",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (online) PolarisSuccess else PolarisError
+                )
+            }
 
             // CenterEnd (não TopEnd) pra ficar alinhado verticalmente com o bloco de duas linhas
             // do relógio ao lado, não só grudado no topo da caixa.
