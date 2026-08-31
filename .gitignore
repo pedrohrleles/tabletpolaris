@@ -12,3 +12,9 @@
 *.hprof
 /app/build
 /app/release
+
+# Chave de upload pra Play App Signing — NUNCA versionar. Backup fora do repo (ver keystore.properties).
+/keystore
+/keystore.properties
+*.jks
+*.keystore

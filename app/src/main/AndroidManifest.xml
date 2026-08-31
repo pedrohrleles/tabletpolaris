@@ -28,6 +28,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Permite escolher o Polaris como app de "Tela inicial" do tablet — é assim que
+                 o app volta a aparecer sozinho depois de ligar, sem depender de um receiver de
+                 boot chamando startActivity() (o Android bloqueia isso hoje, ver BootReceiver
+                 removido/goo.gle/android-bal). Mostrar a Home no boot é o próprio sistema
+                 fazendo isso, não sujeito à mesma restrição. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
     </application>
 

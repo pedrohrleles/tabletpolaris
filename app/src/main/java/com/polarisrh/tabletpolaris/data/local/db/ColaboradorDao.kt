@@ -26,11 +26,15 @@ interface ColaboradorDao {
     @Query("SELECT * FROM rep_core_biometria_facial WHERE embedding_tablet IS NOT NULL")
     suspend fun listarComFacialCadastrada(): List<ColaboradorEntity>
 
+    /** [embedding] já vem criptografado (ver [com.polarisrh.tabletpolaris.data.local.EmbeddingCipher])
+     *  — esta função nunca deve receber o vetor cru do MobileFaceNet direto. */
     @Query("UPDATE rep_core_biometria_facial SET embedding_tablet = :embedding WHERE num_matricula = :matricula")
     suspend fun salvarEmbedding(matricula: String, embedding: ByteArray)
 
     /** Usado ao sincronizar o roster: preserva o embedding já cadastrado localmente em vez de
-     *  deixar o upsert (que sobrescreve a linha inteira) apagar o cadastro facial existente. */
+     *  deixar o upsert (que sobrescreve a linha inteira) apagar o cadastro facial existente.
+     *  Bytes retornados vêm criptografados — precisa passar por [com.polarisrh.tabletpolaris.data.local.EmbeddingCipher.decrypt]
+     *  antes de virar um FloatArray de verdade. */
     @Query("SELECT embedding_tablet FROM rep_core_biometria_facial WHERE num_matricula = :matricula")
     suspend fun buscarEmbedding(matricula: String): ByteArray?
 
