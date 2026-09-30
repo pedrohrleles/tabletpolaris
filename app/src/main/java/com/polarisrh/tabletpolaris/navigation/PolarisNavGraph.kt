@@ -98,6 +98,7 @@ fun PolarisNavGraph(
                 }
                 DeviceSetupScreen(
                     deviceAuthRepository = container.deviceAuthRepository,
+                    networkMonitor = container.networkMonitor,
                     initialErrorMessage = pendingRevocationMessage,
                     onDeviceLinked = {
                         if (navController.currentEntryIsResumed()) {
