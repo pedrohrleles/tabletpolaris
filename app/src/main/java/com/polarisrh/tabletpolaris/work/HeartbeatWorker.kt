@@ -72,6 +72,10 @@ class HeartbeatWorker(
                         container.colaboradorSyncRepository.sincronizarTudo()
                     }
                 }
+                // Falha ao baixar a agenda não derruba o heartbeat — a cópia anterior segue valendo
+                // e a próxima tentativa vem no ciclo seguinte.
+                runCatching { container.agendaPontoRepository.sincronizarSeNecessario() }
+                    .onFailure { Log.w(TAG, "Agenda de ponto não atualizada: ${it.message}") }
                 Result.success()
             } else {
                 Log.w(TAG, "Heartbeat recusado: HTTP ${response.code()}")

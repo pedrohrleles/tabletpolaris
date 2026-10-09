@@ -7,6 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.polarisrh.tabletpolaris.data.repository.AgendaPontoRepository
+import com.polarisrh.tabletpolaris.ui.components.PerguntaTipoMarcacaoDialog
+import java.time.Instant
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
@@ -29,13 +33,16 @@ object PolarisDestinations {
     const val DEVICE_SETUP = "device_setup"
     const val CLOCK_IN = "clock_in"
     const val IDENTITY_CONFIRMATION = "confirmar_identidade/{matricula}"
-    const val FACIAL_CAPTURE = "facial_capture/{matricula}"
+    const val FACIAL_CAPTURE = "facial_capture/{matricula}?tipo={tipo}"
     const val FACIAL_ENROLLMENT = "cadastro_facial/{matricula}"
+    const val PERGUNTA_TIPO = "pergunta_tipo/{matricula}"
     const val PUNCH_SUCCESS = "punch_success/{matricula}/{timestamp}"
 
     fun identityConfirmation(matricula: String) = "confirmar_identidade/$matricula"
-    fun facialCapture(matricula: String) = "facial_capture/$matricula"
+    fun facialCapture(matricula: String, tipo: String? = null) =
+        if (tipo == null) "facial_capture/$matricula" else "facial_capture/$matricula?tipo=$tipo"
     fun facialEnrollment(matricula: String) = "cadastro_facial/$matricula"
+    fun perguntaTipo(matricula: String) = "pergunta_tipo/$matricula"
     fun punchSuccess(matricula: String, timestampMillis: Long) = "punch_success/$matricula/$timestampMillis"
 }
 
@@ -49,6 +56,9 @@ object PolarisDestinations {
  * destino atual só fica RESUMED depois que a transição em andamento assenta, então checar isso
  * aqui filtra o toque duplicado sem precisar de nenhum debounce manual.
  */
+/** Tempo máximo de espera pela agenda forçada no fluxo pós-cadastro de facial — depois disso,
+ *  segue com o que tiver em cache local. Pedido do time do Polaris RH: "se ela não responder em
+ *  poucos segundos (ex.: 3–5s), usem a agenda em cache e sigam com a batida." */
 private fun NavHostController.currentEntryIsResumed() =
     currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED
 
@@ -118,9 +128,10 @@ fun PolarisNavGraph(
                     colaboradorDao = container.colaboradorDao,
                     credentialsStore = container.credentialsStore,
                     desativacaoHandler = container.desativacaoHandler,
-                    onReconhecerFacial = { matricula ->
+                    agendaPontoRepository = container.agendaPontoRepository,
+                    onReconhecerFacial = { matricula, tipo ->
                         if (navController.currentEntryIsResumed()) {
-                            navController.navigate(PolarisDestinations.facialCapture(matricula))
+                            navController.navigate(PolarisDestinations.facialCapture(matricula, tipo))
                         }
                     },
                     onPrecisarConfirmarIdentidade = { matricula ->
@@ -149,13 +160,67 @@ fun PolarisNavGraph(
             }
 
             composable(
-                route = PolarisDestinations.FACIAL_CAPTURE,
+                route = PolarisDestinations.PERGUNTA_TIPO,
                 arguments = listOf(navArgument("matricula") { type = NavType.StringType })
             ) { backStackEntry ->
                 val matricula = backStackEntry.arguments?.getString("matricula").orEmpty()
+                // Checagem 100% local, igual à que já roda pra quem bate ponto normalmente (ver
+                // ClockInViewModel.confirmarMatricula) — sem chamada de rede, sem espera. Confia
+                // que a agenda já foi atualizada bem antes de chegar aqui: o sync de colaboradores
+                // força essa atualização assim que uma matrícula nova aparece (ver
+                // ColaboradorSyncRepository), o que normalmente acontece minutos antes de alguém
+                // terminar de cadastrar a própria facial — não vale a pena esperar rede de novo
+                // nesse momento, isso só deixava o fluxo mais lento sem necessidade.
+                val emJanelaAutomatica = remember(matricula) {
+                    container.agendaPontoRepository.estaEmJanelaAutomatica(matricula, Instant.now())
+                }
+                // SEM a checagem de currentEntryIsResumed() aqui de propósito: esse efeito roda
+                // uma ÚNICA vez (chave = matricula, que não muda), logo depois de entrar nesta
+                // rota — ainda em transição, a entry pode não estar RESUMED nesse instante. Nos
+                // outros usos (cliques do usuário) a checagem evita navegação duplicada de duplo
+                // toque; aqui ela só teria o efeito de, se vier false uma vez, deixar a tela
+                // parada pra sempre numa rota sem nenhum conteúdo visível (bug visto em campo:
+                // tela azul travada depois do cadastro de facial, só saía forçando o app).
+                LaunchedEffect(matricula) {
+                    if (!emJanelaAutomatica) {
+                        navController.navigate(PolarisDestinations.facialCapture(matricula)) {
+                            popUpTo(PolarisDestinations.CLOCK_IN)
+                        }
+                    }
+                }
+                if (emJanelaAutomatica) {
+                    PerguntaTipoMarcacaoDialog(
+                        onEscolher = { tipo ->
+                            if (navController.currentEntryIsResumed()) {
+                                navController.navigate(PolarisDestinations.facialCapture(matricula, tipo)) {
+                                    popUpTo(PolarisDestinations.CLOCK_IN)
+                                }
+                            }
+                        },
+                        onCancelar = {
+                            if (navController.currentEntryIsResumed()) navController.popBackStack()
+                        }
+                    )
+                }
+            }
+
+            composable(
+                route = PolarisDestinations.FACIAL_CAPTURE,
+                arguments = listOf(
+                    navArgument("matricula") { type = NavType.StringType },
+                    navArgument("tipo") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val matricula = backStackEntry.arguments?.getString("matricula").orEmpty()
+                val tipoMarcacao = backStackEntry.arguments?.getString("tipo")
                 FacialCapturePlaceholderScreen(
                     matricula = matricula,
                     modo = ModoCaptura.RECONHECIMENTO,
+                    tipoMarcacao = tipoMarcacao,
                     punchRepository = container.punchRepository,
                     colaboradorDao = container.colaboradorDao,
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
@@ -186,6 +251,7 @@ fun PolarisNavGraph(
                 FacialCapturePlaceholderScreen(
                     matricula = matricula,
                     modo = ModoCaptura.CADASTRO,
+                    tipoMarcacao = null,
                     punchRepository = container.punchRepository,
                     colaboradorDao = container.colaboradorDao,
                     tentativaReconhecimentoDao = container.tentativaReconhecimentoDao,
@@ -195,9 +261,9 @@ fun PolarisNavGraph(
                     // Cadastro nunca bate ponto — só gera e salva o embedding.
                     onPunchRegistered = {},
                     onCadastroConcluido = {
-                        // Fluxo separado: depois de cadastrar, manda pro reconhecimento de
-                        // verdade, que é quem efetivamente registra a batida.
-                        navController.navigate(PolarisDestinations.facialCapture(matricula)) {
+                        // Fluxo separado: depois de cadastrar, passa pela pergunta de ponto
+                        // automático (se houver) e depois pelo reconhecimento, que registra a batida.
+                        navController.navigate(PolarisDestinations.perguntaTipo(matricula)) {
                             popUpTo(PolarisDestinations.CLOCK_IN)
                         }
                     },

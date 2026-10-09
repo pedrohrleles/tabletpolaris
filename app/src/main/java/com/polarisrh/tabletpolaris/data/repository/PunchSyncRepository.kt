@@ -149,6 +149,13 @@ class PunchSyncRepository(
                             "enviado=${batida.dtHrMarcacao} gravado=$corrigida"
                     )
                 }
+                if (aceita.flDiaAutomatico) {
+                    Log.i(
+                        TAG,
+                        "Dia automático confirmado pelo servidor — matrícula=${batida.matricula} " +
+                            "tipo_informado=${aceita.tpMarcacaoInformado} enviado=${batida.tpMarcacao}"
+                    )
+                }
             }
         }
         body?.duplicadas?.forEach { duplicada ->
@@ -178,7 +185,8 @@ class PunchSyncRepository(
         nrMatricula = matricula,
         dtHrMarcacao = dtHrMarcacao,
         assinatura = assinatura,
-        validacaoFacial = ValidacaoFacialDto(nrScore = nrScore, nrThreshold = nrThreshold)
+        validacaoFacial = ValidacaoFacialDto(nrScore = nrScore, nrThreshold = nrThreshold),
+        tpMarcacao = tpMarcacao
     )
 
     private companion object {

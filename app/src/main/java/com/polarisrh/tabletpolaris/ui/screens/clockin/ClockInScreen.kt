@@ -49,9 +49,11 @@ import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler
+import com.polarisrh.tabletpolaris.data.repository.AgendaPontoRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.ui.components.BatteryStatusIndicator
 import com.polarisrh.tabletpolaris.ui.components.NumericKeypad
+import com.polarisrh.tabletpolaris.ui.components.PerguntaTipoMarcacaoDialog
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.components.WifiStatusIndicator
 import com.polarisrh.tabletpolaris.ui.components.pressScale
@@ -79,15 +81,26 @@ fun ClockInScreen(
     colaboradorDao: ColaboradorDao,
     credentialsStore: DeviceCredentialsStore,
     desativacaoHandler: DesativacaoHandler,
-    onReconhecerFacial: (String) -> Unit,
+    agendaPontoRepository: AgendaPontoRepository,
+    onReconhecerFacial: (String, String?) -> Unit,
     onPrecisarConfirmarIdentidade: (String) -> Unit
 ) {
     val viewModel: ClockInViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { ClockInViewModel(deviceStatusChecker, colaboradorSyncRepository, networkMonitor, colaboradorDao, desativacaoHandler) }
+            initializer { ClockInViewModel(deviceStatusChecker, colaboradorSyncRepository, networkMonitor, colaboradorDao, desativacaoHandler, agendaPontoRepository) }
         }
     )
     val uiState by viewModel.uiState.collectAsState()
+
+    uiState.perguntaTipo?.let { pendente ->
+        PerguntaTipoMarcacaoDialog(
+            onEscolher = { tipo ->
+                viewModel.limparPerguntaTipo()
+                onReconhecerFacial(pendente.matricula, tipo)
+            },
+            onCancelar = viewModel::limparPerguntaTipo
+        )
+    }
 
     var matricula by remember { mutableStateOf("") }
 

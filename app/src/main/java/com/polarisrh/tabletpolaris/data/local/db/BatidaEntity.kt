@@ -45,5 +45,8 @@ data class BatidaEntity(
     @ColumnInfo(name = "status_sincronizacao") val statusSincronizacao: String = StatusSincronizacao.PENDENTE,
     @ColumnInfo(name = "qtd_tentativas_sincronizacao") val qtdTentativasSincronizacao: Int = 0,
     @ColumnInfo(name = "dt_ultima_tentativa") val dtUltimaTentativa: String? = null,
-    @ColumnInfo(name = "mensagem_erro_sincronizacao") val mensagemErroSincronizacao: String? = null
+    @ColumnInfo(name = "mensagem_erro_sincronizacao") val mensagemErroSincronizacao: String? = null,
+    /** "1" = Entrada, "2" = Saída — só preenchido quando a batida caiu num dia de ponto
+     *  automático e o colaborador respondeu a pergunta (ver AgendaPontoRepository). */
+    @ColumnInfo(name = "tp_marcacao") val tpMarcacao: String? = null
 )

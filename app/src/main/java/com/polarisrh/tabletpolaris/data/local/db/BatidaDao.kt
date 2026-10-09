@@ -18,6 +18,7 @@ interface BatidaDao {
     @Query("SELECT COUNT(*) FROM batidas_sincronizadas WHERE status_sincronizacao = 'PENDENTE'")
     suspend fun contarPendentes(): Int
 
+
     @Query(
         """
         UPDATE batidas_sincronizadas

@@ -102,6 +102,7 @@ fun FacialCapturePlaceholderScreen(
     tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     credentialsStore: DeviceCredentialsStore,
     faceEmbeddingExtractor: FaceEmbeddingExtractor,
+    tipoMarcacao: String?,
     audioPlayer: PolarisAudioPlayer,
     onPunchRegistered: (PunchResult) -> Unit,
     onCadastroConcluido: () -> Unit,
@@ -118,7 +119,8 @@ fun FacialCapturePlaceholderScreen(
                     colaboradorDao,
                     tentativaReconhecimentoDao,
                     credentialsStore,
-                    faceEmbeddingExtractor
+                    faceEmbeddingExtractor,
+                    tipoMarcacao
                 )
             }
         }

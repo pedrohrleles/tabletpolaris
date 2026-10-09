@@ -17,7 +17,9 @@ data class MarcacaoDto(
     @SerialName("nr_matricula") val nrMatricula: String,
     @SerialName("dt_hr_marcacao") val dtHrMarcacao: String,
     val assinatura: String,
-    @SerialName("validacao_facial") val validacaoFacial: ValidacaoFacialDto
+    @SerialName("validacao_facial") val validacaoFacial: ValidacaoFacialDto,
+    // Omitido do JSON quando nulo (encodeDefaults é false) — só vai em batidas de ponto por exceção.
+    @SerialName("tp_marcacao") val tpMarcacao: String? = null
 )
 
 /** [nrSequenciaLote] é por lote (requisição), não por marcação — estritamente maior que a
@@ -58,9 +60,16 @@ data class MarcacaoAceitaDto(
     // Instante já ancorado no relógio do servidor (ISO 8601 UTC) — pode diferir do
     // dt_hr_marcacao que mandamos; a diferença é o desvio real do relógio deste tablet (ver
     // log em PunchSyncRepository.aplicarResultado). Confirmado com o backend — mesmo nome do
-    // contrato de envio. id_marcacao/nr_nsr/tp_marcacao/comprovante também vêm na resposta, mas
-    // não são usados aqui — nada nesse fluxo depende deles hoje.
-    @SerialName("dt_hr_marcacao") val dtHrMarcacaoCorrigida: String? = null
+    // contrato de envio. id_marcacao/nr_nsr/comprovante também vêm na resposta, mas não são
+    // usados aqui — nada nesse fluxo depende deles hoje.
+    @SerialName("dt_hr_marcacao") val dtHrMarcacaoCorrigida: String? = null,
+    // Modelo de ponto por exceção (2026-10): tp_marcacao aqui é a sequência INTERNA do sistema
+    // (exigência fiscal) e pode diferir do que o colaborador escolheu — nunca exibir ao
+    // colaborador. Quando fl_dia_automatico=true, tp_marcacao_informado é o tipo que ele de fato
+    // escolheu na pergunta; é esse campo que deveria aparecer em qualquer UI futura que mostre o
+    // resultado — a tela de sucesso atual não espera essa resposta (ver PunchResult.tipoMarcacao).
+    @SerialName("fl_dia_automatico") val flDiaAutomatico: Boolean = false,
+    @SerialName("tp_marcacao_informado") val tpMarcacaoInformado: String? = null
 )
 
 @Serializable

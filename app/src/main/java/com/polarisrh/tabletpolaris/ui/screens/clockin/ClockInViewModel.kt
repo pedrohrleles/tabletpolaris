@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
+import com.polarisrh.tabletpolaris.data.repository.AgendaPontoRepository
 import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 private const val STATUS_POLL_INTERVAL_MS = 30_000L
 
@@ -20,15 +22,20 @@ data class ClockInUiState(
     val erro: String? = null,
     // Não nulo = desativação em andamento (ver DesativacaoHandler) — desabilita teclado e
     // Confirmar, mostra essa mensagem ao lado do relógio.
-    val mensagemDesativado: String? = null
+    val mensagemDesativado: String? = null,
+    // Não nulo = matrícula em dia de ponto automático: pergunta Entrada/Saída antes do reconhecimento.
+    val perguntaTipo: PerguntaTipoPendente? = null
 )
+
+data class PerguntaTipoPendente(val matricula: String)
 
 class ClockInViewModel(
     private val deviceStatusChecker: DeviceStatusChecker,
     private val colaboradorSyncRepository: ColaboradorSyncRepository,
     private val networkMonitor: NetworkMonitor,
     private val colaboradorDao: ColaboradorDao,
-    private val desativacaoHandler: DesativacaoHandler
+    private val desativacaoHandler: DesativacaoHandler,
+    private val agendaPontoRepository: AgendaPontoRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ClockInUiState())
@@ -65,14 +72,19 @@ class ClockInViewModel(
         }
     }
 
+    fun limparPerguntaTipo() {
+        _uiState.update { it.copy(perguntaTipo = null) }
+    }
+
     /**
      * Busca a matrícula no roster local e decide o próximo passo: quem já tem embedding vai
-     * direto pro reconhecimento; quem não tem passa antes pela confirmação de identidade
-     * ("Você é o João?"), pra evitar que alguém cadastre o rosto errado numa matrícula alheia.
+     * direto pro reconhecimento (em dia de ponto automático, antes pergunta Entrada/Saída); quem
+     * não tem passa antes pela confirmação de identidade ("Você é o João?"), pra evitar que
+     * alguém cadastre o rosto errado numa matrícula alheia.
      */
     fun confirmarMatricula(
         matricula: String,
-        aoReconhecerFacial: (String) -> Unit,
+        aoReconhecerFacial: (String, String?) -> Unit,
         aoPrecisarConfirmarIdentidade: (String) -> Unit
     ) {
         if (_uiState.value.isVerificandoMatricula || _uiState.value.mensagemDesativado != null) return
@@ -86,7 +98,14 @@ class ClockInViewModel(
                 colaborador == null -> _uiState.update { it.copy(erro = "Matrícula não encontrada") }
                 colaborador.isento -> _uiState.update { it.copy(erro = "Usuário isento de registro de ponto.") }
                 !colaborador.ativo -> _uiState.update { it.copy(erro = "Colaborador inativo") }
-                colaborador.embeddingFacial != null -> aoReconhecerFacial(matricula)
+                colaborador.embeddingFacial != null -> {
+                    val agora = Instant.now()
+                    if (agendaPontoRepository.estaEmJanelaAutomatica(matricula, Instant.now())) {
+                        _uiState.update { it.copy(perguntaTipo = PerguntaTipoPendente(matricula)) }
+                    } else {
+                        aoReconhecerFacial(matricula, null)
+                    }
+                }
                 else -> aoPrecisarConfirmarIdentidade(matricula)
             }
         }

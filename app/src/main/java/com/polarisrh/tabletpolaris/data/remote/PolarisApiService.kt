@@ -1,5 +1,6 @@
 package com.polarisrh.tabletpolaris.data.remote
 
+import com.polarisrh.tabletpolaris.data.remote.dto.AgendaPontoResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.AtivarTabletResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.ColaboradoresSyncResponse
@@ -63,6 +64,14 @@ interface PolarisApiService {
         @Header("Authorization") bearerToken: String,
         @Body request: MarcacoesSyncRequest
     ): Response<MarcacoesSyncResponse>
+
+    // Agenda de ponto automático dos próximos `dias` dias — ver AgendaPontoRepository. Mesma
+    // autenticação de dispositivo das rotas de marcações.
+    @GET("rep-p/dispositivos/ponto-excecao/agenda/")
+    suspend fun consultarAgendaPontoExcecao(
+        @Header("Authorization") bearerToken: String,
+        @Query("dias") dias: Int = 7
+    ): Response<AgendaPontoResponse>
 
     // Avisa que uma facial foi cadastrada localmente — é o que faz o colaborador ver "Facial
     // Cadastrada" (com botão de remover) no painel web em vez de "Cadastre no Tablet".
