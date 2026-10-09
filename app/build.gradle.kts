@@ -18,14 +18,14 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.polarisrh.tabletpolaris"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.polarisrh.tabletpolaris"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.1"
+        targetSdk = 36
+        versionCode = 5
+        versionName = "0.3.2"
     }
 
     // Cada tablet físico é instalado com uma variante travada num ambiente — nunca escolhido em
