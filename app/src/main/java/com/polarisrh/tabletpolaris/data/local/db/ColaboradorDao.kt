@@ -73,4 +73,16 @@ interface ColaboradorDao {
 
     @Query("UPDATE rep_core_biometria_facial SET dt_cadastro_confirmado = :dtConfirmacao WHERE num_matricula = :matricula")
     suspend fun marcarCadastroConfirmado(matricula: String, dtConfirmacao: String)
+
+    /** Chamado ao desvincular o tablet (ver DeviceRevocationHandler/ColaboradorSyncRepository)
+     *  — apaga todo embedding cadastrado e marca como remoção pendente de confirmar pro
+     *  Polaris RH, reaproveitando o mesmo rastro usado por reset remoto (ver
+     *  [listarComRemocaoPendenteDeConfirmacao]). Não toca matrícula/cpf/nome — o roster em si
+     *  só é zerado em prepararParaAtivacao, se a próxima ativação for de empresa diferente. */
+    @Query(
+        "UPDATE rep_core_biometria_facial SET embedding_tablet = NULL, dt_cadastro_facial = NULL, " +
+            "dt_cadastro_confirmado = NULL, dt_reset_facial_aplicado = :dtRemocao, dt_remocao_confirmada = NULL " +
+            "WHERE embedding_tablet IS NOT NULL"
+    )
+    suspend fun apagarTodasFaciais(dtRemocao: String)
 }

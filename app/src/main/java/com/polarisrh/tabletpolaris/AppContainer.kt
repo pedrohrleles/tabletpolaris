@@ -18,6 +18,7 @@ import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_9_10
 import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_10_11
 import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_11_12
 import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_12_13
+import com.polarisrh.tabletpolaris.data.local.db.MIGRATION_13_14
 import com.polarisrh.tabletpolaris.data.local.db.PolarisDatabase
 import com.polarisrh.tabletpolaris.data.local.db.TentativaReconhecimentoDao
 import com.polarisrh.tabletpolaris.data.remote.PolarisApiClient
@@ -27,6 +28,7 @@ import com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceAuthRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceRevocationHandler
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
+import com.polarisrh.tabletpolaris.data.repository.AgendaPontoRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchRepository
 import com.polarisrh.tabletpolaris.data.repository.PunchSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.RemoteDeviceAuthRepository
@@ -67,7 +69,7 @@ class AppContainer(context: Context) {
         PolarisDatabase::class.java,
         "polaris.db"
     )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
         .build()
 
     val colaboradorDao: ColaboradorDao = database.colaboradorDao()
@@ -78,12 +80,28 @@ class AppContainer(context: Context) {
      *  ajuda a calibrar o limiar com dados reais em vez de chutar. */
     val tentativaReconhecimentoDao: TentativaReconhecimentoDao = database.tentativaReconhecimentoDao()
 
+    /** Agenda de ponto automático — baixada pelo heartbeat (segundo plano, timeout maior: o
+     *  cliente padrão de 4s cortava a resposta), consultada na hora de bater o ponto. */
+    val agendaPontoRepository: AgendaPontoRepository = AgendaPontoRepository(
+        api = PolarisApiClient.syncService,
+        credentialsStore = credentialsStore
+    )
+
+    val colaboradorSyncRepository: ColaboradorSyncRepository = ColaboradorSyncRepository(
+        api = polarisApiService,
+        credentialsStore = credentialsStore,
+        colaboradorDao = colaboradorDao,
+        agendaPontoRepository = agendaPontoRepository
+    )
+
     /**
-     * Único ponto que "desvincula" o tablet: limpa a sessão/credenciais. Não mexe no cache de
-     * colaboradores nem na fila de batidas — ver [DeviceRevocationHandler].
+     * Único ponto que "desvincula" o tablet: apaga as faciais cadastradas (avisando o Polaris
+     * RH) e limpa a sessão/credenciais. Não mexe no roster (matrícula/cpf/nome) nem na fila de
+     * batidas — ver [DeviceRevocationHandler].
      */
     val deviceRevocationHandler: DeviceRevocationHandler = DeviceRevocationHandler(
         credentialsStore = credentialsStore,
+        colaboradorSyncRepository = colaboradorSyncRepository,
         onRevoked = { message -> deviceRevocationMessage.value = message }
     )
 
@@ -95,7 +113,8 @@ class AppContainer(context: Context) {
         api = PolarisApiClient.syncService,
         credentialsStore = credentialsStore,
         batidaDao = batidaDao,
-        revocationHandler = deviceRevocationHandler
+        revocationHandler = deviceRevocationHandler,
+        colaboradorSyncRepository = colaboradorSyncRepository
     )
 
     /** Grava local (fila offline) na hora e nunca espera rede — ver RoomPunchRepository. */
@@ -114,12 +133,6 @@ class AppContainer(context: Context) {
         credentialsStore = credentialsStore,
         batidaDao = batidaDao,
         desativacaoHandler = desativacaoHandler
-    )
-
-    val colaboradorSyncRepository: ColaboradorSyncRepository = ColaboradorSyncRepository(
-        api = polarisApiService,
-        credentialsStore = credentialsStore,
-        colaboradorDao = colaboradorDao
     )
 
     val deviceStatusChecker: DeviceStatusChecker = DeviceStatusChecker(

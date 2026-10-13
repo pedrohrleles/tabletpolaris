@@ -376,3 +376,11 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         db.execSQL("ALTER TABLE `rep_core_biometria_facial_new` RENAME TO `rep_core_biometria_facial`")
     }
 }
+
+/** Ponto por exceção: guarda o tipo (1 = Entrada, 2 = Saída) informado pelo colaborador numa
+ *  batida feita dentro de um dia automático. NULL = batida normal, sem pergunta. */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `batidas_sincronizadas` ADD COLUMN `tp_marcacao` TEXT")
+    }
+}

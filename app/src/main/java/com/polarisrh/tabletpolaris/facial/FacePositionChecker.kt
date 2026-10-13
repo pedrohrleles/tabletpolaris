@@ -11,9 +11,28 @@ import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.mlkit.vision.face.FaceLandmark
 import kotlin.coroutines.resume
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlinx.coroutines.suspendCancellableCoroutine
+
+/** Quanto o rosto pode estar virado (yaw) ou com a cabeça abaixada/levantada (pitch) antes de
+ *  rejeitar o enquadramento como "não pronto". ML Kit calcula os dois por padrão (não precisa de
+ *  LANDMARK_MODE nem CLASSIFICATION_MODE), com sinal: Y negativo = virado pra esquerda de quem
+ *  olha a câmera, X negativo = cabeça abaixada. 15° é o valor inicial — frontal o bastante pra
+ *  não degradar a similaridade do MobileFaceNet, mas sem exigir uma pose perfeita impossível de
+ *  segurar parado por 2-3s; ajustar aqui depois de medir em campo, igual já foi feito com
+ *  [com.polarisrh.tabletpolaris.facial.LIMIAR_RECONHECIMENTO_FACIAL]. */
+private const val LIMITE_YAW_GRAUS = 15f
+private const val LIMITE_PITCH_GRAUS = 15f
+
+/** Fração máxima da altura do quadro que o rosto pode ocupar antes de rejeitar como "muito
+ *  perto" — rosto colado na câmera distorce proporções (efeito de lente grande angular) e pode
+ *  cortar queixo/testa fora da imagem, bem diferente da distância normal de uso. Medido em campo
+ *  (log): o próprio ML Kit já para de detectar rosto nenhum por volta de 0.75-0.76 de proporção
+ *  — bem antes do primeiro chute de 0.85, que nunca chegava a disparar. 0.65 dá uma margem real
+ *  de aviso ("afaste um pouco") antes dessa zona onde a detecção já falha de vez. */
+private const val LIMITE_PROPORCAO_ROSTO_NO_QUADRO = 0.65f
 
 /** Tamanho do recorte alinhado — já bate com o input esperado pelo MobileFaceNet (112x112),
  *  então o resize no [FaceEmbeddingExtractor] vira só uma garantia, não um redimensionamento
@@ -61,14 +80,30 @@ class FacePositionChecker {
             .build()
     )
 
-    /** Só valida presença de rosto (nenhum/um/mais de um) — ver justificativa de não checar
-     *  tamanho/posição em [FaceDetectionStatus]. */
+    /** Valida presença de rosto (nenhum/um/mais de um) e, havendo exatamente um, proximidade e
+     *  pose da cabeça — ver justificativa de não checar um MÍNIMO de tamanho em
+     *  [FaceDetectionStatus]. */
     suspend fun verificar(bitmap: Bitmap): FaceDetectionStatus {
         val faces = detectar(detector, bitmap)
 
         return when {
             faces.isEmpty() -> FaceDetectionStatus.SemRosto
             faces.size > 1 -> FaceDetectionStatus.MultiplosRostos
+            else -> avaliarRosto(faces.single(), bitmap)
+        }
+    }
+
+    /** PERFORMANCE_MODE_FAST (sem landmark/classification) ainda calcula ângulos de pose e
+     *  bounding box — fazem parte da detecção base do ML Kit, não são um modo extra a ativar.
+     *  Proximidade checada primeiro: rosto colado na câmera costuma distorcer os ângulos de
+     *  pose também, então o aviso de "afaste um pouco" é mais direto ao ponto que mandar
+     *  endireitar uma pose que já está errada pelo enquadramento, não pela cabeça em si. */
+    private fun avaliarRosto(face: Face, bitmap: Bitmap): FaceDetectionStatus {
+        val proporcaoAltura = face.boundingBox.height().toFloat() / bitmap.height
+        return when {
+            proporcaoAltura > LIMITE_PROPORCAO_ROSTO_NO_QUADRO -> FaceDetectionStatus.RostoMuitoProximo
+            abs(face.headEulerAngleY) > LIMITE_YAW_GRAUS -> FaceDetectionStatus.RostoVirado
+            abs(face.headEulerAngleX) > LIMITE_PITCH_GRAUS -> FaceDetectionStatus.RostoInclinado
             else -> FaceDetectionStatus.Pronto
         }
     }

@@ -21,6 +21,12 @@ class PunchSyncWorker(
         val container = (applicationContext as PolarisApplication).container
         return try {
             container.punchSyncRepository.sincronizarPendentes()
+            // Escala, regime de ponto automático, ausências e feriados podem mudar a qualquer
+            // momento — atualiza a agenda depois de toda tentativa de drenagem (respeitando o
+            // intervalo mínimo de 6h, ver AgendaPontoRepository). Falha aqui não derruba o sync
+            // de batidas, que é o que importa de verdade nesse worker.
+            runCatching { container.agendaPontoRepository.sincronizarSeNecessario() }
+                .onFailure { Log.w(TAG, "Agenda de ponto não atualizada: ${it.message}") }
             // Sem efeito se não estivermos numa desativação em andamento — ver
             // DesativacaoHandler. É aqui (depois de toda tentativa de drenagem, periódica ou
             // imediata) que a gente detecta "fila já esvaziou" e fecha o ciclo com o servidor.

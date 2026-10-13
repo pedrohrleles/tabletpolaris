@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val keypadRows = listOf(
@@ -22,24 +23,30 @@ private val keypadRows = listOf(
     listOf("", "0", "⌫")
 )
 
-private val KeySize = 112.dp
+/** Tamanho padrão da tecla — usado pelas telas que têm espaço de sobra (tablets grandes). Em
+ *  telas menores, quem chama passa [keySize] explicitamente (ver ClockInScreen, que calcula com
+ *  base no espaço real disponível, pra não cortar a última fileira). */
+val NumericKeypadKeySizePadrao = 112.dp
+private val KeySpacingPadrao = 18.dp
 
 @Composable
 fun NumericKeypad(
     onDigit: (String) -> Unit,
     onBackspace: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    keySize: Dp = NumericKeypadKeySizePadrao,
+    keySpacing: Dp = KeySpacingPadrao
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(keySpacing)
     ) {
         keypadRows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(keySpacing)) {
                 row.forEach { key ->
                     when (key) {
-                        "" -> Spacer(modifier = Modifier.size(KeySize))
+                        "" -> Spacer(modifier = Modifier.size(keySize))
                         "⌫" -> {
                             val interactionSource = remember { MutableInteractionSource() }
                             OutlinedButton(
@@ -48,7 +55,7 @@ fun NumericKeypad(
                                 interactionSource = interactionSource,
                                 contentPadding = PaddingValues(0.dp),
                                 modifier = Modifier
-                                    .size(KeySize)
+                                    .size(keySize)
                                     .pressScale(interactionSource)
                             ) {
                                 Text(text = key, style = MaterialTheme.typography.headlineSmall)
@@ -62,7 +69,7 @@ fun NumericKeypad(
                                 interactionSource = interactionSource,
                                 contentPadding = PaddingValues(0.dp),
                                 modifier = Modifier
-                                    .size(KeySize)
+                                    .size(keySize)
                                     .pressScale(interactionSource)
                             ) {
                                 Text(text = key, style = MaterialTheme.typography.headlineMedium)

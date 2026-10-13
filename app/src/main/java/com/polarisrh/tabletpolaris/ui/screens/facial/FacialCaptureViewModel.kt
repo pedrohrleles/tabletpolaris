@@ -79,6 +79,7 @@ class FacialCaptureViewModel(
     private val tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     private val credentialsStore: DeviceCredentialsStore,
     private val faceEmbeddingExtractor: FaceEmbeddingExtractor,
+    private val tipoMarcacao: String?,
     private val embeddingCipher: EmbeddingCipher = EmbeddingCipher()
 ) : ViewModel() {
 
@@ -213,6 +214,9 @@ class FacialCaptureViewModel(
         // cadastrado aqui. Enviado na próxima sincronização (até 30s depois, com a tela de
         // ponto aberta), não bloqueia esse fluxo.
         colaboradorDao.marcarCadastroFacial(matricula, Instant.now().toString())
+        // A atualização forçada da agenda (um colaborador recém-cadastrado pode não estar em
+        // nenhuma cópia anterior) acontece na tela seguinte (rota "pergunta_tipo"), que espera
+        // ela terminar antes de decidir se pergunta Entrada/Saída — ver PolarisNavGraph.
         // A barra na tela anima a transição de valor (não pula direto) — sem essa pausa, ela
         // saía do loop em ~75% e trocava pra tela de sucesso no MESMO instante em que
         // scanProgress virava 1f, sem tempo de a animação visual sequer começar a subir.
@@ -286,9 +290,13 @@ class FacialCaptureViewModel(
         // polling de 30s da tela de ponto, pelo heartbeat de 15min, ou pela flag local de
         // desativação dentro do próprio registerPunch — não vale travar a UI pra fechar essa
         // janela de poucos segundos que o resto do app já tolera.
+        gravarPonto(similaridade)
+    }
+
+    private suspend fun gravarPonto(similaridade: Float) {
         _uiState.update { it.copy(scanProgress = 0.97f) }
 
-        val result = punchRepository.registerPunch(matricula, similaridade, LIMIAR_RECONHECIMENTO_FACIAL)
+        val result = punchRepository.registerPunch(matricula, similaridade, LIMIAR_RECONHECIMENTO_FACIAL, tipoMarcacao)
         result.onSuccess { punchResult ->
             _uiState.update { it.copy(scanProgress = 1f) }
             delay(DURACAO_ANIMACAO_BARRA_MS)

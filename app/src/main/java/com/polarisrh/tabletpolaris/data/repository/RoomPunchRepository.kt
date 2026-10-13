@@ -31,7 +31,12 @@ class RoomPunchRepository(
     private val deviceKeyManager: DeviceKeyManager = DeviceKeyManager()
 ) : PunchRepository {
 
-    override suspend fun registerPunch(matricula: String, nrScore: Float, nrThreshold: Float): Result<PunchResult> {
+    override suspend fun registerPunch(
+        matricula: String,
+        nrScore: Float,
+        nrThreshold: Float,
+        tpMarcacao: String?
+    ): Result<PunchResult> {
         // O backend faz trim() em id_local/nr_matricula/dt_hr_marcacao antes de reconferir a
         // assinatura — precisa ser o MESMO valor (já trimado) usado pra assinar e pro payload,
         // senão espaço na ponta invalida a assinatura.
@@ -53,11 +58,10 @@ class RoomPunchRepository(
         val idLocal = UUID.randomUUID().toString()
         val instanteRegistro = Instant.now()
         val dtHrMarcacao = instanteRegistro.toString()
-        // Payload de assinatura confirmado com o backend: quatro valores, join com "|", sem
-        // espaços — ver DeviceKeyManager.assinar().
-        val assinatura = deviceKeyManager.assinar(
-            "${credentials.idColetor}|$idLocal|$matriculaLimpa|$dtHrMarcacao"
-        )
+        // Payload de assinatura: quatro valores, join com "|", sem espaços — o tipo de marcação
+        // (ponto por exceção) só entra como quinto valor quando for informado.
+        val campos = listOfNotNull(credentials.idColetor, idLocal, matriculaLimpa, dtHrMarcacao, tpMarcacao)
+        val assinatura = deviceKeyManager.assinar(campos.joinToString("|"))
         val cpf = colaboradorDao.buscarPorMatricula(matriculaLimpa)?.cpf
 
         batidaDao.inserir(
@@ -69,7 +73,8 @@ class RoomPunchRepository(
                 idLocal = idLocal,
                 assinatura = assinatura,
                 nrScore = nrScore,
-                nrThreshold = nrThreshold
+                nrThreshold = nrThreshold,
+                tpMarcacao = tpMarcacao
             )
         )
 

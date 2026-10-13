@@ -74,6 +74,8 @@ class DeviceCredentialsStore(context: Context) {
             .remove(KEY_NOME_EMPREGADOR)
             .remove(KEY_TIMEZONE)
             .remove(KEY_BLOQUEADO_DESATIVACAO)
+            .remove(KEY_AGENDA_PONTO_JSON)
+            .remove(KEY_AGENDA_PONTO_BAIXADA_EM)
             .apply()
     }
 
@@ -121,6 +123,18 @@ class DeviceCredentialsStore(context: Context) {
         prefs.edit().putLong(KEY_ULTIMA_SEQUENCIA_LOTE, valor).apply()
     }
 
+    /** Agenda de ponto automático (JSON da resposta) e quando foi baixada — ver AgendaPontoRepository. */
+    fun agendaPontoJson(): String? = prefs.getString(KEY_AGENDA_PONTO_JSON, null)
+
+    fun agendaPontoBaixadaEmMillis(): Long = prefs.getLong(KEY_AGENDA_PONTO_BAIXADA_EM, 0L)
+
+    fun salvarAgendaPonto(json: String, baixadaEmMillis: Long) {
+        prefs.edit()
+            .putString(KEY_AGENDA_PONTO_JSON, json)
+            .putLong(KEY_AGENDA_PONTO_BAIXADA_EM, baixadaEmMillis)
+            .apply()
+    }
+
     private companion object {
         const val PREFS_FILE_NAME = "device_credentials"
         const val KEY_TOKEN = "token"
@@ -132,6 +146,8 @@ class DeviceCredentialsStore(context: Context) {
         const val KEY_TIMEZONE = "timezone"
         const val KEY_ID_EMPREGADOR_COLABORADORES_CACHE = "id_empregador_colaboradores_cache"
         const val KEY_ULTIMA_SEQUENCIA_LOTE = "ultima_sequencia_lote"
+        const val KEY_AGENDA_PONTO_JSON = "agenda_ponto_json"
+        const val KEY_AGENDA_PONTO_BAIXADA_EM = "agenda_ponto_baixada_em"
         const val KEY_BLOQUEADO_DESATIVACAO = "bloqueado_desativacao"
     }
 }

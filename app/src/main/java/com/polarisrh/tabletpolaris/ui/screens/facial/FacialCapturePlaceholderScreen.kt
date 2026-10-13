@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -102,6 +102,7 @@ fun FacialCapturePlaceholderScreen(
     tentativaReconhecimentoDao: TentativaReconhecimentoDao,
     credentialsStore: DeviceCredentialsStore,
     faceEmbeddingExtractor: FaceEmbeddingExtractor,
+    tipoMarcacao: String?,
     audioPlayer: PolarisAudioPlayer,
     onPunchRegistered: (PunchResult) -> Unit,
     onCadastroConcluido: () -> Unit,
@@ -118,7 +119,8 @@ fun FacialCapturePlaceholderScreen(
                     colaboradorDao,
                     tentativaReconhecimentoDao,
                     credentialsStore,
-                    faceEmbeddingExtractor
+                    faceEmbeddingExtractor,
+                    tipoMarcacao
                 )
             }
         }
@@ -178,16 +180,30 @@ fun FacialCapturePlaceholderScreen(
             return@Crossfade
         }
 
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Mesma ideia da tela de Bater Ponto: tamanhos pensados pro tablet grande não cabem
+        // direito num tablet bem menor (cabeçalho apertado contra a logo, rodapé alto demais).
+        val compacto = maxHeight < 1100.dp || maxWidth < 700.dp
+        val paddingHeaderH = if (compacto) 20.dp else 48.dp
+        val paddingHeaderV = if (compacto) 16.dp else 32.dp
+        val tamanhoLogoHeader = if (compacto) 48.dp else 64.dp
+        val alturaRodape = if (compacto) 76.dp else FooterHeight
+        val paddingRodapeH = if (compacto) 24.dp else 48.dp
+
         Column(modifier = Modifier.fillMaxSize()) {
 
         // Header — mesmo azul-marinho profundo do cabeçalho de "Bater Ponto", pra manter as
         // telas consistentes visualmente.
+        // SEM statusBarsPadding() de propósito — as barras do sistema ficam escondidas (modo
+        // imersivo, ver MainActivity), então esse inset deveria valer 0 sempre; só que ele leva
+        // um instante pra assentar nesse valor depois que a tela entra, e nesse meio tempo o
+        // cabeçalho aplicava um padding extra que sumia logo em seguida — o "pulinho" visto ao
+        // entrar nessa tela. A tela de Bater Ponto nunca teve esse modifier e nunca teve o bug.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PolarisBlueDeep)
-                .statusBarsPadding()
-                .padding(horizontal = 48.dp, vertical = 32.dp),
+                .padding(horizontal = paddingHeaderH, vertical = paddingHeaderV),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -211,7 +227,7 @@ fun FacialCapturePlaceholderScreen(
                     color = PolarisMuted
                 )
             }
-            PolarisLogoMark(size = 64.dp)
+            PolarisLogoMark(size = tamanhoLogoHeader)
         }
 
         // A barra acompanha o progresso real do pipeline (captura → embedding → checagem →
@@ -238,16 +254,21 @@ fun FacialCapturePlaceholderScreen(
             )
         }
 
-        // Live front-camera feed com detecção facial (ML Kit) rodando a cada frame — só
-        // classifica presença de rosto (nenhum / mais de um / pronto). Sem guia de posição
-        // (removido de propósito), mas com dois elementos puramente decorativos: cantos de
-        // viewfinder (fixos) e uma borda que muda de cor com o status — dão estrutura visual
-        // sem indicar nenhuma posição que o rosto precise ocupar.
+        // Live front-camera feed com detecção facial (ML Kit) rodando a cada frame — classifica
+        // presença de rosto (nenhum / mais de um / pronto) e, havendo um só, a pose da cabeça
+        // (ver FacePositionChecker.avaliarPose) — não segue pra captura com o rosto virado ou
+        // inclinado, só exige "reto" o bastante pra não degradar o embedding, não uma pose
+        // perfeita. Sem guia VISUAL de posição (círculo/oval, removido de propósito), mas com
+        // dois elementos puramente decorativos: cantos de viewfinder (fixos) e uma borda que
+        // muda de cor com o status — dão estrutura visual sem indicar nenhuma posição física
+        // que o rosto precise ocupar na tela.
         val corStatusCamera by animateColorAsState(
             targetValue = when {
                 uiState.errorMessage != null -> PolarisError
                 uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> PolarisWarning
                 uiState.faceDetectionStatus == FaceDetectionStatus.Pronto -> PolarisSuccess
+                // Virado/inclinado fica com a cor neutra (else -> PolarisBlue), igual "sem
+                // rosto" — não é erro, só ainda não está pronto.
                 else -> PolarisBlue
             },
             animationSpec = tween(300),
@@ -283,6 +304,9 @@ fun FacialCapturePlaceholderScreen(
                 uiState.isScanning -> "Verificando rosto..." to PolarisSuccess
                 uiState.faceDetectionStatus == FaceDetectionStatus.SemRosto -> "Nenhum rosto detectado" to PolarisOnPrimary
                 uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> "Mais de um rosto detectado" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoMuitoProximo -> "Afaste um pouco o rosto" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoVirado -> "Olhe reto para a câmera" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoInclinado -> "Mantenha a cabeça reta" to PolarisOnPrimary
                 uiState.errorMessage != null -> uiState.errorMessage to MaterialTheme.colorScheme.error
                 else -> "Rosto posicionado corretamente" to PolarisSuccess
             }
@@ -302,10 +326,10 @@ fun FacialCapturePlaceholderScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(FooterHeight)
+                .height(alturaRodape)
                 .background(PolarisSurfaceDark)
                 .navigationBarsPadding()
-                .padding(horizontal = 48.dp),
+                .padding(horizontal = paddingRodapeH),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -317,6 +341,7 @@ fun FacialCapturePlaceholderScreen(
                 )
             }
         }
+        }
     }
     }
 }
@@ -325,22 +350,27 @@ fun FacialCapturePlaceholderScreen(
  *  que o cadastro terminou do que só um texto verde por cima da câmera. */
 @Composable
 private fun FacialCadastradaSucesso(nomeColaborador: String?, matricula: String) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compacto = maxHeight < 1100.dp || maxWidth < 700.dp
+        val paddingTela = if (compacto) 24.dp else 48.dp
+        val tamanhoLogo = if (compacto) 48.dp else 64.dp
+        val tamanhoCheck = if (compacto) 104.dp else 140.dp
+
         PolarisLogoMark(
-            size = 64.dp,
+            size = tamanhoLogo,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(48.dp)
+                .padding(paddingTela)
         )
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(48.dp),
+                .padding(paddingTela),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            AnimatedCheckmark(color = PolarisSuccess)
+            AnimatedCheckmark(size = tamanhoCheck, color = PolarisSuccess)
 
             Text(
                 text = "Facial cadastrada com sucesso!",
@@ -353,6 +383,7 @@ private fun FacialCadastradaSucesso(nomeColaborador: String?, matricula: String)
                     text = nome,
                     style = MaterialTheme.typography.bodyLarge,
                     color = PolarisMuted,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
@@ -360,6 +391,7 @@ private fun FacialCadastradaSucesso(nomeColaborador: String?, matricula: String)
                 text = "Matrícula $matricula",
                 style = MaterialTheme.typography.bodyLarge,
                 color = PolarisMuted,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = if (nomeColaborador != null) 4.dp else 12.dp)
             )
         }

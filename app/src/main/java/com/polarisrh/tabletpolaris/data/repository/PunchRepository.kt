@@ -7,5 +7,10 @@ import java.time.Instant
 data class PunchResult(val matricula: String, val timestamp: Instant)
 
 interface PunchRepository {
-    suspend fun registerPunch(matricula: String, nrScore: Float, nrThreshold: Float): Result<PunchResult>
+    suspend fun registerPunch(
+        matricula: String,
+        nrScore: Float,
+        nrThreshold: Float,
+        tpMarcacao: String? = null
+    ): Result<PunchResult>
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +26,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -49,9 +53,12 @@ import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.data.repository.ColaboradorSyncRepository
 import com.polarisrh.tabletpolaris.data.repository.DesativacaoHandler
+import com.polarisrh.tabletpolaris.data.repository.AgendaPontoRepository
 import com.polarisrh.tabletpolaris.data.repository.DeviceStatusChecker
 import com.polarisrh.tabletpolaris.ui.components.BatteryStatusIndicator
 import com.polarisrh.tabletpolaris.ui.components.NumericKeypad
+import com.polarisrh.tabletpolaris.ui.components.NumericKeypadKeySizePadrao
+import com.polarisrh.tabletpolaris.ui.components.PerguntaTipoMarcacaoDialog
 import com.polarisrh.tabletpolaris.ui.components.PolarisLogoMark
 import com.polarisrh.tabletpolaris.ui.components.WifiStatusIndicator
 import com.polarisrh.tabletpolaris.ui.components.pressScale
@@ -79,145 +86,198 @@ fun ClockInScreen(
     colaboradorDao: ColaboradorDao,
     credentialsStore: DeviceCredentialsStore,
     desativacaoHandler: DesativacaoHandler,
-    onReconhecerFacial: (String) -> Unit,
+    agendaPontoRepository: AgendaPontoRepository,
+    onReconhecerFacial: (String, String?) -> Unit,
     onPrecisarConfirmarIdentidade: (String) -> Unit
 ) {
     val viewModel: ClockInViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { ClockInViewModel(deviceStatusChecker, colaboradorSyncRepository, networkMonitor, colaboradorDao, desativacaoHandler) }
+            initializer { ClockInViewModel(deviceStatusChecker, colaboradorSyncRepository, networkMonitor, colaboradorDao, desativacaoHandler, agendaPontoRepository) }
         }
     )
     val uiState by viewModel.uiState.collectAsState()
 
+    uiState.perguntaTipo?.let { pendente ->
+        PerguntaTipoMarcacaoDialog(
+            onEscolher = { tipo ->
+                viewModel.limparPerguntaTipo()
+                onReconhecerFacial(pendente.matricula, tipo)
+            },
+            onCancelar = viewModel::limparPerguntaTipo
+        )
+    }
+
     var matricula by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Cabeçalho: logo no canto + relógio como tipografia limpa, sem card/borda (o visual
-        // "cartão com ícone" anterior lembrava demais um placeholder genérico de IA). Fundo num
-        // azul-marinho mais profundo (mesma cor já usada em botões de outras telas) — sem isso,
-        // cabeçalho e corpo ficavam no mesmo tom de azul/fundo, tudo parecendo uma coisa só.
-        // Usa o timezone do local de trabalho registrado na ativação (não o fuso do sistema do
-        // tablet) — lido uma vez, não muda enquanto essa tela estiver aberta.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(PolarisBlueDeep)
-                .padding(horizontal = 48.dp, vertical = 32.dp)
-        ) {
-            val timezoneLocal = remember { credentialsStore.read()?.timezone }
-            HorarioAtualHeader(
-                timezone = timezoneLocal,
-                mensagemDesativado = uiState.mensagemDesativado,
-                modifier = Modifier.align(Alignment.Center)
-            )
+    // Tamanhos pensados pro tablet grande (SM-X230, ~800x1280dp) não cabem em tablets menores
+    // (ex.: SM-X133, ~600x1000dp) — cabeçalho sobrepunha os três blocos (Wi-Fi/relógio/bateria)
+    // por estarem todos alinhados de forma independente num Box, e o teclado+botão ficavam
+    // cortados embaixo da tela, inacessíveis. BoxWithConstraints dá o espaço REAL disponível
+    // nesse aparelho específico — os tamanhos abaixo reagem a isso automaticamente, sem precisar
+    // de ajuste manual por modelo de tablet. O scroll no corpo é a rede de segurança final: se
+    // mesmo assim sobrar pouco espaço (tablet ainda menor que os dois testados), nada fica
+    // inacessível, só pede um scroll.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compacto = maxHeight < 1100.dp || maxWidth < 700.dp
+        val paddingHeaderH = if (compacto) 20.dp else 48.dp
+        val paddingHeaderV = if (compacto) 16.dp else 32.dp
+        val tamanhoLogo = if (compacto) 44.dp else 56.dp
+        val espacoLogoBateria = if (compacto) 16.dp else 36.dp
+        val paddingCorpoH = if (compacto) 24.dp else 48.dp
+        val paddingCorpoTopo = if (compacto) 16.dp else 24.dp
+        val paddingCorpoBase = if (compacto) 20.dp else 48.dp
+        val espacoAposSubtitulo = if (compacto) 16.dp else 40.dp
+        val espacoAposMatricula = if (compacto) 20.dp else 36.dp
+        val espacoAntesBotao = if (compacto) 16.dp else 36.dp
+        val alturaMatricula = if (compacto) 72.dp else 88.dp
+        val alturaBotao = if (compacto) 64.dp else 76.dp
+        val tamanhoTecla = if (compacto) 84.dp else NumericKeypadKeySizePadrao
+        val espacoTecla = if (compacto) 12.dp else 18.dp
 
-            WifiStatusIndicator(
-                networkMonitor = networkMonitor,
-                modifier = Modifier.align(Alignment.CenterStart)
-            )
-
-            // CenterEnd (não TopEnd) pra ficar alinhado verticalmente com o bloco de duas linhas
-            // do relógio ao lado, não só grudado no topo da caixa. Bateria fica dentro dessa
-            // mesma Row, à esquerda do logo — espelhando o Wi-Fi do outro lado.
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Cabeçalho: logo no canto + relógio como tipografia limpa, sem card/borda (o visual
+            // "cartão com ícone" anterior lembrava demais um placeholder genérico de IA). Fundo num
+            // azul-marinho mais profundo (mesma cor já usada em botões de outras telas) — sem isso,
+            // cabeçalho e corpo ficavam no mesmo tom de azul/fundo, tudo parecendo uma coisa só.
+            // Usa o timezone do local de trabalho registrado na ativação (não o fuso do sistema do
+            // tablet) — lido uma vez, não muda enquanto essa tela estiver aberta.
+            //
+            // Row com duas zonas de peso igual (não Box com três filhos alinhados independentes):
+            // isso reserva o MESMO espaço pros lados esquerdo e direito, garantindo que o relógio
+            // fique centralizado de verdade e que Wi-Fi/bateria nunca se sobreponham a ele — um
+            // Box com vários `align` só posiciona cada filho no seu canto sem saber do tamanho
+            // dos outros, e foi isso que causou a sobreposição no tablet menor.
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
-                BatteryStatusIndicator()
-                Spacer(modifier = Modifier.width(36.dp))
-                PolarisLogoMark(size = 56.dp)
-            }
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        // Corpo: tudo que envolve bater o ponto forma UM bloco só. Alinhado ao TOPO (não mais
-        // centralizado no espaço todo) com um respiro pequeno — centralizar deixava um vão
-        // vazio grande acima de "Bater Ponto" quando o teclado+botão não preenchiam a tela.
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 48.dp, end = 48.dp, top = 24.dp, bottom = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top
-        ) {
-            Text(text = "Bater Ponto", style = MaterialTheme.typography.headlineLarge)
-            Text(
-                text = "Digite sua matrícula para registrar o ponto",
-                style = MaterialTheme.typography.bodyLarge,
-                color = PolarisMuted,
-                modifier = Modifier.padding(top = 12.dp, bottom = 40.dp)
-            )
-
-            Text(
-                text = "MATRÍCULA",
-                style = MaterialTheme.typography.labelMedium,
-                color = PolarisMuted,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp, start = 4.dp)
-            )
-
-            MatriculaField(matricula = matricula)
-
-            Spacer(modifier = Modifier.height(36.dp))
-
-            NumericKeypad(
-                onDigit = { digit ->
-                    if (matricula.length < MAX_MATRICULA_LENGTH) {
-                        matricula += digit
-                    }
-                },
-                onBackspace = {
-                    matricula = matricula.dropLast(1)
-                },
-                enabled = uiState.mensagemDesativado == null
-            )
-
-            AnimatedVisibility(
-                visible = uiState.erro != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                    .background(PolarisBlueDeep)
+                    .padding(horizontal = paddingHeaderH, vertical = paddingHeaderV),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = uiState.erro.orEmpty(),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 20.dp)
-                )
-            }
+                val timezoneLocal = remember { credentialsStore.read()?.timezone }
 
-            Spacer(modifier = Modifier.height(36.dp))
-
-            val confirmarInteractionSource = remember { MutableInteractionSource() }
-            Button(
-                onClick = {
-                    viewModel.confirmarMatricula(
-                        matricula = MATRICULA_PREFIX + matricula,
-                        aoReconhecerFacial = onReconhecerFacial,
-                        aoPrecisarConfirmarIdentidade = onPrecisarConfirmarIdentidade
+                Box(modifier = Modifier.weight(1f)) {
+                    WifiStatusIndicator(
+                        networkMonitor = networkMonitor,
+                        modifier = Modifier.align(Alignment.CenterStart)
                     )
-                },
-                enabled = matricula.isNotEmpty() && !uiState.isVerificandoMatricula && uiState.mensagemDesativado == null,
-                interactionSource = confirmarInteractionSource,
+                }
+
+                HorarioAtualHeader(
+                    timezone = timezoneLocal,
+                    mensagemDesativado = uiState.mensagemDesativado
+                )
+
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        BatteryStatusIndicator()
+                        Spacer(modifier = Modifier.width(espacoLogoBateria))
+                        PolarisLogoMark(size = tamanhoLogo)
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            // Corpo: tudo que envolve bater o ponto forma UM bloco só. Alinhado ao TOPO (não mais
+            // centralizado no espaço todo) com um respiro pequeno — centralizar deixava um vão
+            // vazio grande acima de "Bater Ponto" quando o teclado+botão não preenchiam a tela.
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(76.dp)
-                    .pressScale(confirmarInteractionSource)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = paddingCorpoH,
+                        end = paddingCorpoH,
+                        top = paddingCorpoTopo,
+                        bottom = paddingCorpoBase
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Top
             ) {
-                Text("Confirmar", style = MaterialTheme.typography.labelLarge)
+                Text(text = "Bater Ponto", style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    text = "Digite sua matrícula para registrar o ponto",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = PolarisMuted,
+                    modifier = Modifier.padding(top = 12.dp, bottom = espacoAposSubtitulo)
+                )
+
+                Text(
+                    text = "MATRÍCULA",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = PolarisMuted,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp, start = 4.dp)
+                )
+
+                MatriculaField(matricula = matricula, altura = alturaMatricula)
+
+                Spacer(modifier = Modifier.height(espacoAposMatricula))
+
+                NumericKeypad(
+                    onDigit = { digit ->
+                        if (matricula.length < MAX_MATRICULA_LENGTH) {
+                            matricula += digit
+                        }
+                    },
+                    onBackspace = {
+                        matricula = matricula.dropLast(1)
+                    },
+                    enabled = uiState.mensagemDesativado == null,
+                    keySize = tamanhoTecla,
+                    keySpacing = espacoTecla
+                )
+
+                AnimatedVisibility(
+                    visible = uiState.erro != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Text(
+                        text = uiState.erro.orEmpty(),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(espacoAntesBotao))
+
+                val confirmarInteractionSource = remember { MutableInteractionSource() }
+                Button(
+                    onClick = {
+                        viewModel.confirmarMatricula(
+                            matricula = MATRICULA_PREFIX + matricula,
+                            aoReconhecerFacial = onReconhecerFacial,
+                            aoPrecisarConfirmarIdentidade = onPrecisarConfirmarIdentidade
+                        )
+                    },
+                    enabled = matricula.isNotEmpty() && !uiState.isVerificandoMatricula && uiState.mensagemDesativado == null,
+                    interactionSource = confirmarInteractionSource,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(alturaBotao)
+                        .pressScale(confirmarInteractionSource)
+                ) {
+                    Text("Confirmar", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MatriculaField(matricula: String) {
+private fun MatriculaField(matricula: String, altura: Dp) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 88.dp)
-            .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
+            .heightIn(min = altura)
+            .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
             .padding(horizontal = 26.dp, vertical = 16.dp),
         contentAlignment = Alignment.CenterStart
     ) {

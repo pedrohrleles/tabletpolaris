@@ -10,6 +10,7 @@ import com.polarisrh.tabletpolaris.data.remote.dto.FacialCadastradaRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialNotificacaoResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.FacialRemovidaRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.RemocaoFacialDto
+import kotlinx.coroutines.sync.Mutex
 import java.io.IOException
 import java.time.Instant
 
@@ -27,8 +28,26 @@ import java.time.Instant
 class ColaboradorSyncRepository(
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
-    private val colaboradorDao: ColaboradorDao
+    private val colaboradorDao: ColaboradorDao,
+    private val agendaPontoRepository: AgendaPontoRepository
 ) {
+    // Essa função é chamada de vários gatilhos independentes (polling de 30s da tela de ponto,
+    // "voltou a internet", heartbeat, worker de sync) que podem coincidir no tempo — sem isso,
+    // duas chamadas concorrentes duplicavam toda a carga de colaboradores E a atualização forçada
+    // de agenda (visto em log: dois GETs de agenda com 178ms de diferença, mesmo dispositivo).
+    private val mutex = Mutex()
+
+    /** Se já tem uma sincronização em andamento, essa chamada é descartada — a que já está
+     *  rodando cobre o mesmo trabalho (sempre é uma carga completa, nunca parcial). */
+    suspend fun sincronizarTudo() {
+        if (!mutex.tryLock()) return
+        try {
+            sincronizarTudoAgora()
+        } finally {
+            mutex.unlock()
+        }
+    }
+
     /**
      * Chamado a cada ativação bem-sucedida, antes de salvar as novas credenciais. Se o tablet
      * já tinha cache de colaboradores de uma ativação anterior:
@@ -68,9 +87,13 @@ class ColaboradorSyncRepository(
      * pertence mais à empresa (desligado ou qualquer outro motivo) e é removida. Como toda
      * chamada aqui é sempre uma foto completa (nunca parcial), essa comparação é segura.
      */
-    suspend fun sincronizarTudo() {
+    private suspend fun sincronizarTudoAgora() {
         val credentials = credentialsStore.read() ?: return
         val bearerToken = "Bearer ${credentials.token}"
+
+        // Capturado ANTES de qualquer upsert — é contra isso que comparamos no fim pra saber
+        // quem é matrícula genuinamente NOVA nesta sincronização (ver uso mais abaixo).
+        val matriculasAntes = colaboradorDao.listarTodos().map { it.matricula }.toSet()
 
         var cursor: String? = null
         val matriculasRecebidas = mutableSetOf<String>()
@@ -120,6 +143,22 @@ class ColaboradorSyncRepository(
 
         confirmarCadastrosPendentes()
         confirmarRemocoesPendentes()
+
+        // Escala, regime de ponto automático, ausências e feriados podem ter mudado junto com o
+        // roster — pedido do time do Polaris RH. Matrícula GENUINAMENTE NOVA (recém-admitida,
+        // não existia localmente até agora) força a atualização aqui mesmo, ignorando o
+        // intervalo de 6h: é o único jeito de garantir que a agenda já esteja pronta minutos
+        // antes de alguém chegar no tablet pra cadastrar a facial, em vez de forçar (e esperar)
+        // só depois, no meio do cadastro — essa função já roda em segundo plano (30s/heartbeat),
+        // então uns segundos a mais aqui não trava ninguém. Sem matrícula nova, continua
+        // respeitando o intervalo de 6h normal. Falha aqui não derruba a sincronização de
+        // colaboradores, que é o que importa de verdade nesta função.
+        val matriculasNovas = matriculasRecebidas - matriculasAntes
+        if (matriculasNovas.isNotEmpty()) {
+            Log.i(TAG, "${matriculasNovas.size} matrícula(s) nova(s) — forçando atualização da agenda")
+        }
+        runCatching { agendaPontoRepository.sincronizarSeNecessario(forcar = matriculasNovas.isNotEmpty()) }
+            .onFailure { Log.w(TAG, "Agenda de ponto não atualizada: ${it.message}") }
     }
 
     /** Monta a entidade local a partir do DTO — comum a colaboradores normais e isentos.
@@ -242,6 +281,21 @@ class ColaboradorSyncRepository(
         if (body.confirmadas.isNotEmpty()) {
             Log.i(TAG, "Notificação de $rotulo facial confirmada pro Polaris RH — ${body.confirmadas.size} matrícula(s)")
         }
+    }
+
+    /**
+     * Chamado quando o tablet é desvinculado (ver [DeviceRevocationHandler]) — sem isso, o
+     * cadastro facial local sobrevivia à desativação e o painel web continuava mostrando
+     * "Facial Cadastrada" pra quem já tinha cadastrado aqui, mesmo sem mais nenhum vínculo
+     * entre este tablet e a empresa. Só apaga o EMBEDDING (ver [ColaboradorDao.apagarTodasFaciais])
+     * — matrícula/cpf/nome continuam em cache, decididos separadamente na próxima ativação (ver
+     * [prepararParaAtivacao]). Precisa ser chamado ANTES de limpar as credenciais, senão não há
+     * token pra avisar o backend (POST facial-removida).
+     */
+    suspend fun apagarTodasFaciaisEAvisar() {
+        if (colaboradorDao.listarComFacialCadastrada().isEmpty()) return
+        colaboradorDao.apagarTodasFaciais(Instant.now().toString())
+        confirmarRemocoesPendentes()
     }
 
     private companion object {
