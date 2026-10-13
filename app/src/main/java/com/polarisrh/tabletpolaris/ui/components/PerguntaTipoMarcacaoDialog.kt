@@ -56,7 +56,7 @@ fun PerguntaTipoMarcacaoDialog(
             modifier = Modifier
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .background(PolarisCard, RoundedCornerShape(24.dp))
+                .background(PolarisCard, RoundedCornerShape(4.dp))
                 .padding(36.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -120,7 +120,7 @@ private fun OpcaoTipoMarcacao(
             Box(
                 modifier = Modifier
                     .size(60.dp)
-                    .border(1.5.dp, PolarisOnPrimary, RoundedCornerShape(16.dp)),
+                    .border(1.5.dp, PolarisOnPrimary, RoundedCornerShape(4.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

@@ -254,16 +254,21 @@ fun FacialCapturePlaceholderScreen(
             )
         }
 
-        // Live front-camera feed com detecção facial (ML Kit) rodando a cada frame — só
-        // classifica presença de rosto (nenhum / mais de um / pronto). Sem guia de posição
-        // (removido de propósito), mas com dois elementos puramente decorativos: cantos de
-        // viewfinder (fixos) e uma borda que muda de cor com o status — dão estrutura visual
-        // sem indicar nenhuma posição que o rosto precise ocupar.
+        // Live front-camera feed com detecção facial (ML Kit) rodando a cada frame — classifica
+        // presença de rosto (nenhum / mais de um / pronto) e, havendo um só, a pose da cabeça
+        // (ver FacePositionChecker.avaliarPose) — não segue pra captura com o rosto virado ou
+        // inclinado, só exige "reto" o bastante pra não degradar o embedding, não uma pose
+        // perfeita. Sem guia VISUAL de posição (círculo/oval, removido de propósito), mas com
+        // dois elementos puramente decorativos: cantos de viewfinder (fixos) e uma borda que
+        // muda de cor com o status — dão estrutura visual sem indicar nenhuma posição física
+        // que o rosto precise ocupar na tela.
         val corStatusCamera by animateColorAsState(
             targetValue = when {
                 uiState.errorMessage != null -> PolarisError
                 uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> PolarisWarning
                 uiState.faceDetectionStatus == FaceDetectionStatus.Pronto -> PolarisSuccess
+                // Virado/inclinado fica com a cor neutra (else -> PolarisBlue), igual "sem
+                // rosto" — não é erro, só ainda não está pronto.
                 else -> PolarisBlue
             },
             animationSpec = tween(300),
@@ -299,6 +304,9 @@ fun FacialCapturePlaceholderScreen(
                 uiState.isScanning -> "Verificando rosto..." to PolarisSuccess
                 uiState.faceDetectionStatus == FaceDetectionStatus.SemRosto -> "Nenhum rosto detectado" to PolarisOnPrimary
                 uiState.faceDetectionStatus == FaceDetectionStatus.MultiplosRostos -> "Mais de um rosto detectado" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoMuitoProximo -> "Afaste um pouco o rosto" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoVirado -> "Olhe reto para a câmera" to PolarisOnPrimary
+                uiState.faceDetectionStatus == FaceDetectionStatus.RostoInclinado -> "Mantenha a cabeça reta" to PolarisOnPrimary
                 uiState.errorMessage != null -> uiState.errorMessage to MaterialTheme.colorScheme.error
                 else -> "Rosto posicionado corretamente" to PolarisSuccess
             }

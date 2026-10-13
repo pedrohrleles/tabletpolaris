@@ -277,7 +277,7 @@ private fun MatriculaField(matricula: String, altura: Dp) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = altura)
-            .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
+            .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
             .padding(horizontal = 26.dp, vertical = 16.dp),
         contentAlignment = Alignment.CenterStart
     ) {

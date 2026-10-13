@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.polarisrh.tabletpolaris.ui.theme.PolarisBlue
 import com.polarisrh.tabletpolaris.ui.theme.PolarisCard
 
-private val CardRadius = 32.dp
+private val CardRadius = 4.dp
 private val StripeHeight = 8.dp
 
 /** Cartão claro com uma listra colorida no topo, igual ao card de login do web — como o fundo
