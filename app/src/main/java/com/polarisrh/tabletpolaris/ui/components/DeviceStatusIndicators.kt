@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.polarisrh.tabletpolaris.data.local.NetworkMonitor
 import com.polarisrh.tabletpolaris.ui.theme.PolarisError
 import com.polarisrh.tabletpolaris.ui.theme.PolarisOnPrimary
@@ -68,7 +69,15 @@ fun WifiStatusIndicator(networkMonitor: NetworkMonitor, modifier: Modifier = Mod
         }
         Text(
             text = if (online) "Conectado" else "Desconectado",
-            style = MaterialTheme.typography.labelMedium,
+            // "Desconectado" é 3 letras mais longo que "Conectado" e, no espaço apertado da
+            // tela de Bater Ponto (dividido com o relógio central), quebrava em duas linhas
+            // ("Desconectad" / "o"). labelMedium aqui é 18sp (escala grande, pensada pra
+            // leitura à distância no tablet) — só reduzir 1sp (como a primeira tentativa) era
+            // imperceptível; 14sp foi o que coube numa linha só testando ao vivo no tablet.
+            style = MaterialTheme.typography.labelMedium.let {
+                if (online) it else it.copy(fontSize = 14.sp)
+            },
+            maxLines = 1,
             color = if (online) PolarisSuccess else PolarisError
         )
     }
