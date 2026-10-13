@@ -36,7 +36,8 @@ class DesativacaoHandler(
     private val api: PolarisApiService,
     private val credentialsStore: DeviceCredentialsStore,
     private val batidaDao: BatidaDao,
-    private val revocationHandler: DeviceRevocationHandler
+    private val revocationHandler: DeviceRevocationHandler,
+    private val colaboradorSyncRepository: ColaboradorSyncRepository
 ) {
     private val _mensagemBloqueio = MutableStateFlow<String?>(
         if (credentialsStore.estaBloqueadoPorDesativacao()) MENSAGEM_PADRAO else null
@@ -80,6 +81,17 @@ class DesativacaoHandler(
         // Texto fixo na tela por pedido explícito — curto, só pra facilitar debug em campo. A
         // mensagem de verdade do backend (ds_mensagem) vai só pro log, acima.
         _mensagemBloqueio.value = MENSAGEM_PADRAO
+
+        // Precisa rodar AQUI, com a janela ainda aberta (fl_sincronizacao_liberada=true) — é
+        // a única garantia de que o token do coletor ainda é válido. Esperar até revoke() (fim
+        // do ciclo) é tarde demais: o próprio POST /desativacao/confirmar que fecha a janela em
+        // tentarConcluirSeNecessario já invalida o token NAQUELA MESMA resposta, e o aviso de
+        // remoção facial chega depois — visto em campo, 401 na confirmação. Idempotente e
+        // best-effort (ver ColaboradorSyncRepository.apagarTodasFaciaisEAvisar): se falhar aqui,
+        // o próximo polling que cair nesta função (30s/heartbeat) tenta de novo, enquanto a
+        // janela continuar aberta.
+        runCatching { colaboradorSyncRepository.apagarTodasFaciaisEAvisar() }
+            .onFailure { Log.w(TAG, "Falha ao apagar faciais na desativação, tentando de novo no próximo ciclo: ${it.message}") }
 
         dispararSincronizacaoImediata()
     }

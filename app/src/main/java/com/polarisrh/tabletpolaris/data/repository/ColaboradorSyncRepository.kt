@@ -283,6 +283,21 @@ class ColaboradorSyncRepository(
         }
     }
 
+    /**
+     * Chamado quando o tablet é desvinculado (ver [DeviceRevocationHandler]) — sem isso, o
+     * cadastro facial local sobrevivia à desativação e o painel web continuava mostrando
+     * "Facial Cadastrada" pra quem já tinha cadastrado aqui, mesmo sem mais nenhum vínculo
+     * entre este tablet e a empresa. Só apaga o EMBEDDING (ver [ColaboradorDao.apagarTodasFaciais])
+     * — matrícula/cpf/nome continuam em cache, decididos separadamente na próxima ativação (ver
+     * [prepararParaAtivacao]). Precisa ser chamado ANTES de limpar as credenciais, senão não há
+     * token pra avisar o backend (POST facial-removida).
+     */
+    suspend fun apagarTodasFaciaisEAvisar() {
+        if (colaboradorDao.listarComFacialCadastrada().isEmpty()) return
+        colaboradorDao.apagarTodasFaciais(Instant.now().toString())
+        confirmarRemocoesPendentes()
+    }
+
     private companion object {
         const val TAG = "ColaboradorSync"
     }

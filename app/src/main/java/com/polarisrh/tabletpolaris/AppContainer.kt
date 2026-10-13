@@ -80,12 +80,28 @@ class AppContainer(context: Context) {
      *  ajuda a calibrar o limiar com dados reais em vez de chutar. */
     val tentativaReconhecimentoDao: TentativaReconhecimentoDao = database.tentativaReconhecimentoDao()
 
+    /** Agenda de ponto automático — baixada pelo heartbeat (segundo plano, timeout maior: o
+     *  cliente padrão de 4s cortava a resposta), consultada na hora de bater o ponto. */
+    val agendaPontoRepository: AgendaPontoRepository = AgendaPontoRepository(
+        api = PolarisApiClient.syncService,
+        credentialsStore = credentialsStore
+    )
+
+    val colaboradorSyncRepository: ColaboradorSyncRepository = ColaboradorSyncRepository(
+        api = polarisApiService,
+        credentialsStore = credentialsStore,
+        colaboradorDao = colaboradorDao,
+        agendaPontoRepository = agendaPontoRepository
+    )
+
     /**
-     * Único ponto que "desvincula" o tablet: limpa a sessão/credenciais. Não mexe no cache de
-     * colaboradores nem na fila de batidas — ver [DeviceRevocationHandler].
+     * Único ponto que "desvincula" o tablet: apaga as faciais cadastradas (avisando o Polaris
+     * RH) e limpa a sessão/credenciais. Não mexe no roster (matrícula/cpf/nome) nem na fila de
+     * batidas — ver [DeviceRevocationHandler].
      */
     val deviceRevocationHandler: DeviceRevocationHandler = DeviceRevocationHandler(
         credentialsStore = credentialsStore,
+        colaboradorSyncRepository = colaboradorSyncRepository,
         onRevoked = { message -> deviceRevocationMessage.value = message }
     )
 
@@ -97,7 +113,8 @@ class AppContainer(context: Context) {
         api = PolarisApiClient.syncService,
         credentialsStore = credentialsStore,
         batidaDao = batidaDao,
-        revocationHandler = deviceRevocationHandler
+        revocationHandler = deviceRevocationHandler,
+        colaboradorSyncRepository = colaboradorSyncRepository
     )
 
     /** Grava local (fila offline) na hora e nunca espera rede — ver RoomPunchRepository. */
@@ -105,13 +122,6 @@ class AppContainer(context: Context) {
         context = context,
         batidaDao = batidaDao,
         colaboradorDao = colaboradorDao,
-        credentialsStore = credentialsStore
-    )
-
-    /** Agenda de ponto automático — baixada pelo heartbeat (segundo plano, timeout maior: o
-     *  cliente padrão de 4s cortava a resposta), consultada na hora de bater o ponto. */
-    val agendaPontoRepository: AgendaPontoRepository = AgendaPontoRepository(
-        api = PolarisApiClient.syncService,
         credentialsStore = credentialsStore
     )
 
@@ -123,13 +133,6 @@ class AppContainer(context: Context) {
         credentialsStore = credentialsStore,
         batidaDao = batidaDao,
         desativacaoHandler = desativacaoHandler
-    )
-
-    val colaboradorSyncRepository: ColaboradorSyncRepository = ColaboradorSyncRepository(
-        api = polarisApiService,
-        credentialsStore = credentialsStore,
-        colaboradorDao = colaboradorDao,
-        agendaPontoRepository = agendaPontoRepository
     )
 
     val deviceStatusChecker: DeviceStatusChecker = DeviceStatusChecker(
