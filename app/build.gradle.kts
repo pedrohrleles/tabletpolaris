@@ -24,8 +24,8 @@ android {
         applicationId = "com.polarisrh.tabletpolaris"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.1"
+        versionCode = 8
+        versionName = "0.4.2"
     }
 
     // Cada tablet físico é instalado com uma variante travada num ambiente — nunca escolhido em

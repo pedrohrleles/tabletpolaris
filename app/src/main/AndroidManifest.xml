@@ -18,6 +18,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TabletPolaris">
+        <!-- Face detection "não-empacotado" (ver libs.versions.toml): o modelo não vai mais
+             dentro do .apk, é baixado pelo Google Play Services. Essa flag pede pra Play Store
+             baixar o modelo já no momento da instalação/atualização do app — ela mesma tem rede
+             disponível nesse momento (acabou de baixar o .apk pela rede) — em vez de só baixar
+             na primeira vez que a câmera for usada, quando pode não ter rede disponível. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="face" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
