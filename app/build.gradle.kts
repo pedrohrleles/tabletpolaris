@@ -119,7 +119,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.mlkit.face.detection)
-    implementation(libs.tensorflow.lite)
+    implementation(libs.litert)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
