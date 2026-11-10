@@ -50,4 +50,12 @@ interface BatidaDao {
         """
     )
     suspend fun registrarFalhaSincronizacao(id: Long, dtTentativa: String, mensagemErro: String)
+
+    /** Candidatas ao reenvio automático de rejeitadas por falta de escala (ver
+     *  [com.polarisrh.tabletpolaris.data.repository.PunchSyncRepository.reenviarPorFaltaDeEscalaSeNecessario])
+     *  — comparação por texto EXATO com o motivo, combinado com o backend que essa mensagem
+     *  nunca muda. Qualquer outro motivo de rejeição (ex.: "Marcação com data futura") nunca
+     *  entra aqui, de propósito. */
+    @Query("SELECT * FROM batidas_sincronizadas WHERE status_sincronizacao = 'REJEITADA' AND mensagem_erro_sincronizacao = :motivo")
+    suspend fun listarRejeitadasPorMotivo(motivo: String): List<BatidaEntity>
 }

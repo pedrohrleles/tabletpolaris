@@ -45,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.polarisrh.tabletpolaris.BuildConfig
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -266,6 +268,19 @@ fun ClockInScreen(
                 ) {
                     Text("Confirmar", style = MaterialTheme.typography.labelLarge)
                 }
+
+                // Só pra conferência interna (saber se um tablet já recebeu uma atualização
+                // publicada) — por isso bem pequeno/discreto, nunca pensado pro colaborador que
+                // bate ponto. Fonte fixa em 11sp (não um dos estilos do tema, todos pensados
+                // pra leitura à distância) de propósito, senão ficaria chamativo igual o resto
+                // da tela. Fica sempre visível: é o último item da Column com scroll do corpo,
+                // então nunca fica cortado, só rola um pouco a mais em tablet pequeno.
+                Text(
+                    text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    fontSize = 11.sp,
+                    color = PolarisMuted,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
             }
         }
     }

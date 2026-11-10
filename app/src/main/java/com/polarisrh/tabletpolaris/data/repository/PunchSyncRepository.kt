@@ -1,6 +1,7 @@
 package com.polarisrh.tabletpolaris.data.repository
 
 import android.util.Log
+import com.polarisrh.tabletpolaris.BuildConfig
 import com.polarisrh.tabletpolaris.data.local.DeviceCredentialsStore
 import com.polarisrh.tabletpolaris.data.local.db.BatidaDao
 import com.polarisrh.tabletpolaris.data.local.db.BatidaEntity
@@ -116,6 +117,91 @@ class PunchSyncRepository(
         }
     }
 
+    /**
+     * Reenvio automático, best-effort, de batidas rejeitadas só por falta de escala vigente —
+     * pedido do time do Polaris RH (motivo volta a existir quando corrigem o vínculo da pessoa
+     * depois do fato). Roda no máximo 1x/dia ou logo após o app atualizar (ver
+     * [reenviarRejeitadasPorFaltaDeEscala]), chamado pelo [com.polarisrh.tabletpolaris.work.PunchSyncWorker]
+     * depois de [sincronizarPendentes] — a fila PENDENTE de verdade sempre drena primeiro.
+     */
+    suspend fun reenviarPorFaltaDeEscalaSeNecessario() {
+        val versionCodeAtual = BuildConfig.VERSION_CODE
+        val acabouDeAtualizar = credentialsStore.ultimoVersionCodeVisto() != versionCodeAtual
+        val passouIntervalo = System.currentTimeMillis() - credentialsStore.ultimaTentativaReenvioSemEscalaMillis() >=
+            INTERVALO_REENVIO_SEM_ESCALA_MS
+        if (!acabouDeAtualizar && !passouIntervalo) return
+
+        // Marcado ANTES de tentar — se a tentativa falhar (sem rede, 5xx), só tenta de novo no
+        // próximo intervalo normal, sem virar uma rajada de novas tentativas a cada sync.
+        credentialsStore.salvarUltimoVersionCodeVisto(versionCodeAtual)
+        credentialsStore.salvarUltimaTentativaReenvioSemEscala(System.currentTimeMillis())
+        reenviarRejeitadasPorFaltaDeEscala()
+    }
+
+    /**
+     * Mesmo formato de envio de [sincronizarPendentes] (lote → POST → aplica resultado), mas
+     * deliberadamente separado dessa função: a lista de origem é outra (REJEITADA com motivo
+     * exato, não PENDENTE), o teto de lote combinado com o backend é outro (500, não 15 — essa
+     * varredura roda no máximo 1x/dia, não precisa do mesmo cuidado com o timeout do
+     * syncService que levou a reduzir o lote normal), e principalmente: [nrFilaPendente] aqui
+     * reflete só o que ainda está genuinamente PENDENTE — nunca o tamanho desse reenvio, senão
+     * a trava de desativação do servidor interpretaria como "ainda tem batida de verdade por
+     * sincronizar" (ver pedido do Polaris RH).
+     */
+    private suspend fun reenviarRejeitadasPorFaltaDeEscala() {
+        val credentials = credentialsStore.read() ?: return
+        val candidatas = batidaDao.listarRejeitadasPorMotivo(MOTIVO_SEM_ESCALA)
+        if (candidatas.isEmpty()) return
+
+        var proximaSequencia = proximaSequenciaValida()
+
+        for (lote in candidatas.chunked(TAMANHO_MAXIMO_LOTE_REENVIO)) {
+            var tentativasRealinhamento = 0
+            val filaPendenteReal = batidaDao.contarPendentes()
+
+            while (true) {
+                credentialsStore.salvarUltimaSequenciaLote(proximaSequencia)
+
+                val request = MarcacoesSyncRequest(
+                    nrSequenciaLote = proximaSequencia,
+                    dtDispositivo = Instant.now().toString(),
+                    nrFilaPendente = filaPendenteReal,
+                    marcacoes = lote.map { it.paraMarcacaoDto() }
+                )
+                val response = api.enviarMarcacoes("Bearer ${credentials.token}", request)
+
+                if (response.isSuccessful) {
+                    // Mesma aplicarResultado de sempre: aceitas/duplicadas viram SINCRONIZADA;
+                    // rejeitada de novo atualiza dt_ultima_tentativa/mensagem_erro_sincronizacao
+                    // e continua REJEITADA — se o motivo mudar (ex.: virou "mais de 90 dias"),
+                    // a próxima varredura (filtro por texto exato) já não pega mais essa linha
+                    // sozinha, sem precisar de nenhum código extra pra isso.
+                    aplicarResultado(lote, response.body())
+                    proximaSequencia += 1
+                    break
+                }
+
+                if (response.code() == 409 && tentativasRealinhamento < MAX_TENTATIVAS_REALINHAMENTO) {
+                    tentativasRealinhamento++
+                    val ultimaAceita = parseErro409(response)?.nrUltimaSequenciaAceita
+                    proximaSequencia = if (ultimaAceita != null) {
+                        credentialsStore.salvarUltimaSequenciaLote(ultimaAceita)
+                        ultimaAceita + 1
+                    } else {
+                        proximaSequencia + 1
+                    }
+                    continue
+                }
+
+                // Falha desse lote (5xx, rede, 400 de relógio, ou 409 que não realinhou) — para
+                // essa varredura sem marcar nada; as linhas continuam REJEITADA com o mesmo
+                // motivo, então a próxima varredura (amanhã, ou pós-atualização) tenta de novo.
+                Log.w(TAG, "Lote de reenvio (sem escala) recusado: HTTP ${response.code()}")
+                return
+            }
+        }
+    }
+
     /** Nunca gera um timestamp "cru" sem checar o último valor persistido — um relógio que
      *  regrediu (correção NTP, troca de fuso, RTC descarregado) não pode travar a sincronização
      *  indefinidamente. */
@@ -195,7 +281,13 @@ class PunchSyncRepository(
         // uma) — um lote de 50 chegava perto do teto de 30s do syncService, sem margem pra rede
         // mais lenta ou o backend ocupado. Com 15, mesmo um dia ruim fica bem abaixo do timeout.
         const val TAMANHO_MAXIMO_LOTE = 15
+        // Teto combinado com o backend especificamente pro reenvio de "sem escala" — não tem
+        // o mesmo motivo pra ser pequeno que o TAMANHO_MAXIMO_LOTE normal (essa varredura roda
+        // no máximo 1x/dia, não está competindo com a tela de ponto por tempo de resposta).
+        const val TAMANHO_MAXIMO_LOTE_REENVIO = 500
         const val MAX_TENTATIVAS_REALINHAMENTO = 2
+        const val INTERVALO_REENVIO_SEM_ESCALA_MS = 24 * 60 * 60 * 1000L
+        const val MOTIVO_SEM_ESCALA = "Colaborador sem escala ativa vinculada."
         const val TAG = "PunchSyncRepository"
     }
 }

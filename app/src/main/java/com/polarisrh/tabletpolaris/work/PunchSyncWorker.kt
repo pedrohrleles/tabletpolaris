@@ -21,6 +21,11 @@ class PunchSyncWorker(
         val container = (applicationContext as PolarisApplication).container
         return try {
             container.punchSyncRepository.sincronizarPendentes()
+            // Varredura separada, best-effort — roda no máximo 1x/dia (ou logo após atualizar o
+            // app), sempre DEPOIS da fila PENDENTE de verdade já ter drenado acima. Falha aqui
+            // não derruba o resultado do worker (mesmo padrão da agenda, logo abaixo).
+            runCatching { container.punchSyncRepository.reenviarPorFaltaDeEscalaSeNecessario() }
+                .onFailure { Log.w(TAG, "Reenvio de 'sem escala' não concluído, tentando de novo depois: ${it.message}") }
             // Escala, regime de ponto automático, ausências e feriados podem mudar a qualquer
             // momento — atualiza a agenda depois de toda tentativa de drenagem (respeitando o
             // intervalo mínimo de 6h, ver AgendaPontoRepository). Falha aqui não derruba o sync
