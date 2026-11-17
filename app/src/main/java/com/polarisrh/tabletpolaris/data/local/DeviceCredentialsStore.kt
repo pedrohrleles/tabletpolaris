@@ -123,6 +123,26 @@ class DeviceCredentialsStore(context: Context) {
         prefs.edit().putLong(KEY_ULTIMA_SEQUENCIA_LOTE, valor).apply()
     }
 
+    /** Throttle do reenvio automático de batidas rejeitadas por falta de escala (ver
+     *  [com.polarisrh.tabletpolaris.data.repository.PunchSyncRepository.reenviarPorFaltaDeEscalaSeNecessario])
+     *  — combinado de rodar no máximo 1x/dia, então o horário da última tentativa precisa
+     *  sobreviver a reboots. Propositalmente NÃO é limpo em [clear] — é um controle de
+     *  frequência de varredura, não um dado ligado à empresa/sessão atual (mesmo padrão de
+     *  [ultimaSequenciaLote]). */
+    fun ultimaTentativaReenvioSemEscalaMillis(): Long = prefs.getLong(KEY_ULTIMA_TENTATIVA_REENVIO_SEM_ESCALA, 0L)
+
+    fun salvarUltimaTentativaReenvioSemEscala(millis: Long) {
+        prefs.edit().putLong(KEY_ULTIMA_TENTATIVA_REENVIO_SEM_ESCALA, millis).apply()
+    }
+
+    /** -1 (nunca visto) força a varredura de "sem escala" a rodar já na primeira checagem
+     *  depois de instalar/atualizar, sem esperar o intervalo de 24h. */
+    fun ultimoVersionCodeVisto(): Int = prefs.getInt(KEY_ULTIMO_VERSION_CODE_VISTO, -1)
+
+    fun salvarUltimoVersionCodeVisto(versionCode: Int) {
+        prefs.edit().putInt(KEY_ULTIMO_VERSION_CODE_VISTO, versionCode).apply()
+    }
+
     /** Agenda de ponto automático (JSON da resposta) e quando foi baixada — ver AgendaPontoRepository. */
     fun agendaPontoJson(): String? = prefs.getString(KEY_AGENDA_PONTO_JSON, null)
 
@@ -149,5 +169,7 @@ class DeviceCredentialsStore(context: Context) {
         const val KEY_AGENDA_PONTO_JSON = "agenda_ponto_json"
         const val KEY_AGENDA_PONTO_BAIXADA_EM = "agenda_ponto_baixada_em"
         const val KEY_BLOQUEADO_DESATIVACAO = "bloqueado_desativacao"
+        const val KEY_ULTIMA_TENTATIVA_REENVIO_SEM_ESCALA = "ultima_tentativa_reenvio_sem_escala"
+        const val KEY_ULTIMO_VERSION_CODE_VISTO = "ultimo_version_code_visto"
     }
 }
