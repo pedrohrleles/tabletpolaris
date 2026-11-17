@@ -12,6 +12,8 @@ import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncErrorResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncRequest
 import com.polarisrh.tabletpolaris.data.remote.dto.MarcacoesSyncResponse
 import com.polarisrh.tabletpolaris.data.remote.dto.ValidacaoFacialDto
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import retrofit2.Response
 import java.time.Instant
@@ -29,7 +31,20 @@ class PunchSyncRepository(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun sincronizarPendentes() {
+    // PunchSyncWorker roda tanto no disparo imediato (logo após cada ponto) quanto no periódico
+    // (rede de segurança a cada 15min) — são dois nomes DIFERENTES de trabalho único no
+    // WorkManager, que só impede sobreposição DENTRO do mesmo nome. Se os dois coincidirem no
+    // tempo, cada execução lia/escrevia o contador de NSR (nr_sequencia_lote) de forma
+    // independente, podendo mandar lotes fora da ordem cronológica mesmo a fila local já
+    // estando ordenada (achado real pelo Polaris RH: NSR maior com horário menor, duas
+    // sincronizações correndo em paralelo). Esse mutex serializa qualquer código que toque
+    // nr_sequencia_lote, dentro deste processo — mesmo padrão já usado em
+    // [ColaboradorSyncRepository] pro mesmo tipo de corrida.
+    private val mutex = Mutex()
+
+    suspend fun sincronizarPendentes() = mutex.withLock { sincronizarPendentesSemTrava() }
+
+    private suspend fun sincronizarPendentesSemTrava() {
         val credentials = credentialsStore.read() ?: return
         val pendentes = batidaDao.listarPendentes()
         if (pendentes.isEmpty()) return
@@ -135,7 +150,7 @@ class PunchSyncRepository(
         // próximo intervalo normal, sem virar uma rajada de novas tentativas a cada sync.
         credentialsStore.salvarUltimoVersionCodeVisto(versionCodeAtual)
         credentialsStore.salvarUltimaTentativaReenvioSemEscala(System.currentTimeMillis())
-        reenviarRejeitadasPorFaltaDeEscala()
+        mutex.withLock { reenviarRejeitadasPorFaltaDeEscala() }
     }
 
     /**

@@ -12,8 +12,22 @@ import com.polarisrh.tabletpolaris.data.local.db.BatidaDao
 import com.polarisrh.tabletpolaris.data.local.db.BatidaEntity
 import com.polarisrh.tabletpolaris.data.local.db.ColaboradorDao
 import com.polarisrh.tabletpolaris.work.PunchSyncWorker
+import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlin.math.abs
+
+/** `Instant.toString()` omite dígitos de milissegundo quando são zero à direita (ex.:
+ *  "...42.500Z" vira "...42.5Z", e "...42.000Z" vira "...42Z", sem fração nenhuma) — largura
+ *  variável que pode quebrar a ordenação `ORDER BY dt_hr_marcacao ASC` do SQLite, que compara a
+ *  coluna como texto puro, não como data. Formatando sempre com 3 dígitos fixos, a comparação
+ *  textual vira equivalente à cronológica em qualquer caso (pedido do Polaris RH: fila
+ *  offline sincronizar na ordem certa). Continua um ISO-8601 válido, então nada que já faz
+ *  `Instant.parse()` nesse campo precisa mudar. */
+private val FORMATO_DT_HR_MARCACAO: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
 /**
  * Sempre grava local primeiro e devolve sucesso na hora — nunca espera rede. A batida entra na
@@ -55,9 +69,22 @@ class RoomPunchRepository(
             return Result.failure(IllegalStateException("Tablet desativado"))
         }
 
-        val idLocal = UUID.randomUUID().toString()
         val instanteRegistro = Instant.now()
-        val dtHrMarcacao = instanteRegistro.toString()
+
+        // Bloqueio de toque duplo (pedido do Polaris RH: duas marcações no mesmo segundo pelo
+        // mesmo colaborador, offline, viram DOIS registros no AFD que não podem ser apagados —
+        // a Portaria 671 não permite exclusão depois de gerado). Checagem 100% local (banco),
+        // funciona sem rede nenhuma, que é justamente onde os casos reais aconteceram. Mesmo
+        // intervalo (5s) já usado pela batida via web.
+        batidaDao.buscarUltimaBatida(matriculaLimpa)?.let { ultima ->
+            val gapMs = abs(Duration.between(Instant.parse(ultima.dtHrMarcacao), instanteRegistro).toMillis())
+            if (gapMs < COOLDOWN_MESMA_MATRICULA_MS) {
+                return Result.failure(IllegalStateException("Ponto já registrado"))
+            }
+        }
+
+        val idLocal = UUID.randomUUID().toString()
+        val dtHrMarcacao = FORMATO_DT_HR_MARCACAO.format(instanteRegistro)
         // Payload de assinatura: quatro valores, join com "|", sem espaços — o tipo de marcação
         // (ponto por exceção) só entra como quinto valor quando for informado.
         val campos = listOfNotNull(credentials.idColetor, idLocal, matriculaLimpa, dtHrMarcacao, tpMarcacao)
@@ -102,5 +129,9 @@ class RoomPunchRepository(
             ExistingWorkPolicy.REPLACE,
             request
         )
+    }
+
+    private companion object {
+        const val COOLDOWN_MESMA_MATRICULA_MS = 5_000L
     }
 }

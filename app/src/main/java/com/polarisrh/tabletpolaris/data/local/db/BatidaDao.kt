@@ -10,6 +10,15 @@ interface BatidaDao {
     @Insert
     suspend fun inserir(batida: BatidaEntity): Long
 
+    /** Última batida já gravada dessa matrícula (qualquer status) — usada só pro bloqueio de
+     *  toque duplo em [com.polarisrh.tabletpolaris.data.repository.RoomPunchRepository.registerPunch],
+     *  por isso ordena por `id` (ordem real de gravação local), não por `dt_hr_marcacao`: a
+     *  própria duplicata costuma ter um timestamp ligeiramente MENOR que a batida original (ver
+     *  motivo da reportagem do Polaris RH), então ordenar pela hora marcada poderia devolver a
+     *  duplicata em vez da batida de verdade mais recente. */
+    @Query("SELECT * FROM batidas_sincronizadas WHERE num_matricula = :matricula ORDER BY id DESC LIMIT 1")
+    suspend fun buscarUltimaBatida(matricula: String): BatidaEntity?
+
     /** Fila offline: tudo que ainda não foi confirmado (aceito, duplicado ou rejeitado) pelo
      *  Polaris RH. */
     @Query("SELECT * FROM batidas_sincronizadas WHERE status_sincronizacao = 'PENDENTE' ORDER BY dt_hr_marcacao ASC")
